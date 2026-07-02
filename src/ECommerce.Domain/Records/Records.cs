@@ -6,3 +6,5 @@ public record Money(string Currency, decimal Amount)
 {
     public static Money Zero(string currency = "RUB") => new(currency, 0);
 }
+
+public record Address(string Country, string Street, string City, string PostalCode);
