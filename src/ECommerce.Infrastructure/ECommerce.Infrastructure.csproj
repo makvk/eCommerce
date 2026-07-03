@@ -10,4 +10,8 @@
       <ProjectReference Include="..\ECommerce.Application\ECommerce.Application.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+    </ItemGroup>
+
 </Project>
