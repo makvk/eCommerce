@@ -20,5 +20,6 @@ public class OrderItem
     }
     
     private  OrderItem() {} // ctor for ef core
+    
     public void IncreaseQuantity(int quantity) => Quantity += quantity;
 }

@@ -1,9 +1,10 @@
+using ECommerce.Application.Common;
 using ECommerce.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace ECommerce.Infrastructure.Persistence;
 
-public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(options)
+public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(options), IEDbContext
 {
     public DbSet<Customer> Customers { get; set; }
     public DbSet<Product> Products { get; set; }
