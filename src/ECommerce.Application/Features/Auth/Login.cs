@@ -1,3 +1,4 @@
+using ECommerce.Application.Common;
 using FluentValidation;
 using MediatR;
 
@@ -13,7 +14,7 @@ public class Login
 
     public record AuthResult(string Token);
     // Команда
-    public record Command(UserData User) : IRequest<UserData>;
+    public record Command(UserData User) : IRequest<AuthResult>;
     
     // Валидатор
     public class CommandValidator : AbstractValidator<Command>
@@ -30,5 +31,17 @@ public class Login
         }
     };
     // Хендлер
-    public class Handle() : IRequestHandler<Command, UserData>
+    public class Handler(IJwtTokenGenerator jwtTokenGenerator) : IRequestHandler<Command, AuthResult>
+    {
+        private readonly IJwtTokenGenerator _jwtTokenGenerator = jwtTokenGenerator;
+        public async Task<AuthResult> Handle(Command request, CancellationToken cancellationToken)
+        {
+            var token = _jwtTokenGenerator.GenerateToken(
+                Guid.NewGuid(),
+                "Customer",
+                request.User.Email ?? string.Empty
+            );
+            return new AuthResult(token);
+        }
+    }
 }

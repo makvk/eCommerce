@@ -1,16 +1,20 @@
-using System.Reflection;
 using System.Text;
-using ECommerce.Api.Endpoints;
+using ECommerce.Application.Common;
 using ECommerce.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using FluentValidation;
+using MediatR;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var services = builder.Services;
 
+services.AddScoped<ECommerce.Application.Common.IJwtTokenGenerator, ECommerce.Infrastructure.Security.JwtTokenGenerator>();
+
+services.AddControllers();
 // Регистрация контекста работы с бд в DI
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -18,8 +22,13 @@ services.AddDbContext<EDbContext>(options =>
     options.UseNpgsql(connectionString));
 
 // Регистрация MediatR
-services.AddMediatR(Assembly.GetExecutingAssembly());
+services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssembly(typeof(IEDbContext).Assembly);
+    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ECommerce.Application.Common.ValidationBehavior<,>));
+});
 
+services.AddValidatorsFromAssembly(typeof(IEDbContext).Assembly);
 // Настройка Swagger
 services.AddEndpointsApiExplorer()
     .AddSwaggerGen(c =>
@@ -76,7 +85,7 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapAuthEndpoints();
+app.MapControllers();
 
 app.Run();
 
