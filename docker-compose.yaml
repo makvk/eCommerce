@@ -1,5 +1,7 @@
+version: '3.8'
+
 services:
-  postgres-db:
+  ecommerce-db:
     image: postgres:16-alpine
     container_name: ecommerce-postgres
     environment:
@@ -10,6 +12,29 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce-network
+
+  ecommerce-api:
+    image: ecommerce-api-image
+    container_name: ecommerce-webapi
+    build:
+      context: .
+      dockerfile: src/ECommerce.Api/Dockerfile
+    ports:
+      - "8000:8080" # Внешний порт 8000 перенаправляет на внутренний 8080 контейнера
+      - "8001:8081"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=ecommerce-db;Port=5432;Database=ecommerce_db;Username=postgres;Password=your_pass
+    depends_on:
+      - ecommerce-db
+    networks:
+      - ecommerce-network
 
 volumes:
   postgres_data:
+
+networks:
+  ecommerce-network:
+    driver: bridge
