@@ -29,4 +29,15 @@ public class AuthController(IMediator mediator) : ControllerBase
     {
         return Ok();
     }
+
+    [HttpPost]
+    [Route("register")]
+    public async Task<IActionResult> Register(
+        [FromBody] Register.Command command,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
 }

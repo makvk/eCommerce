@@ -10,6 +10,11 @@ public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(option
     public DbSet<Product> Products { get; set; }
     public DbSet<Order> Orders { get; set; }
 
+    public async Task AddCustomerAsync(Customer customer, CancellationToken cancellationToken)
+    {
+        await Customers.AddAsync(customer, cancellationToken);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

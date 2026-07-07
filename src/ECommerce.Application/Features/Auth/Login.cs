@@ -1,6 +1,7 @@
 using ECommerce.Application.Common;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace ECommerce.Application.Features.Auth;
 
@@ -31,15 +32,34 @@ public class Login
         }
     };
     // Хендлер
-    public class Handler(IJwtTokenGenerator jwtTokenGenerator) : IRequestHandler<Command, AuthResult>
+    public class Handler(IJwtTokenGenerator jwtTokenGenerator, 
+        IEDbContext eDbContext, 
+        IPasswordHasher passwordHasher) : IRequestHandler<Command, AuthResult>
     {
+        private readonly IEDbContext _eDbContext = eDbContext;
         private readonly IJwtTokenGenerator _jwtTokenGenerator = jwtTokenGenerator;
+        private readonly IPasswordHasher _passwordHasher = passwordHasher;
         public async Task<AuthResult> Handle(Command request, CancellationToken cancellationToken)
         {
+            var user = await _eDbContext.Customers.FirstOrDefaultAsync(
+                u => u.Email == request.User.Email,
+                cancellationToken
+            );
+
+            if (user == null)
+            {
+                throw new Exception("User not found");
+            }
+
+            if (!_passwordHasher.VerifyHashedPassword(request.User.Password!, user.PasswordHash))
+            {
+                throw new Exception("Password incorrect");
+            }
+
             var token = _jwtTokenGenerator.GenerateToken(
-                Guid.NewGuid(),
+                user.Id,
                 "Customer",
-                request.User.Email ?? string.Empty
+                request.User.Email!
             );
             return new AuthResult(token);
         }

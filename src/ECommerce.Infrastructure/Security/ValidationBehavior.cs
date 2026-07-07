@@ -1,7 +1,7 @@
 using FluentValidation;
 using MediatR;
 
-namespace ECommerce.Application.Common;
+namespace ECommerce.Infrastructure.Security;
 
 public class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TRequest>> validators) 
     : IPipelineBehavior<TRequest, TResponse>
