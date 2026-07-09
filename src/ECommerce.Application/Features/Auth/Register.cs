@@ -56,7 +56,6 @@ public class Register
                 request.User.FullName!
             );
             await _eDbContext.AddCustomerAsync(newUser, cancellationToken);
-            await _eDbContext.SaveChangesAsync(cancellationToken);
 
             var token = _jwtTokenGenerator.GenerateToken(
                 newUser.Id,

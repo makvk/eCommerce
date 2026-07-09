@@ -25,7 +25,7 @@ public class AuthController(IMediator mediator) : ControllerBase
     [HttpGet]
     [Authorize]
     [Route("test-auth")]
-    public async Task<IActionResult> TestAuth()
+    public IActionResult TestAuth()
     {
         return Ok();
     }
@@ -39,5 +39,16 @@ public class AuthController(IMediator mediator) : ControllerBase
     {
         var result = await _mediator.Send(command, cancellationToken);
         return Ok(result);
+    }
+
+    [HttpGet]
+    [Route("get-test-admin-token")]
+    public IActionResult GetTestAdminToken(IJwtTokenGenerator tokenGenerator)
+    {
+        var token = tokenGenerator.GenerateToken(
+            Guid.Empty,
+            "Admin",
+            "test-admin");
+        return Ok(new Dictionary<string, string> { { "token",  token } });
     }
 }

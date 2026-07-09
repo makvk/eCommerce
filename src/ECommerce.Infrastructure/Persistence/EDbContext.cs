@@ -1,4 +1,5 @@
 using ECommerce.Application.Common;
+using ECommerce.Application.Common.Exceptions;
 using ECommerce.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,11 +10,40 @@ public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(option
     public DbSet<Customer> Customers { get; set; }
     public DbSet<Product> Products { get; set; }
     public DbSet<Order> Orders { get; set; }
-
+    
+    // Users
     public async Task AddCustomerAsync(Customer customer, CancellationToken cancellationToken)
     {
         await Customers.AddAsync(customer, cancellationToken);
+        
+        await SaveChangesAsync(cancellationToken);
     }
+    
+    // Products
+    public async Task<Product?> GetProductByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var product = await Products.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        return product;
+    }
+    public async Task AddProductAsync(Product product, CancellationToken cancellationToken)
+    {
+        await Products.AddAsync(product, cancellationToken);
+        
+        await SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveProductByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var rowsAffected = await Products
+            .Where(p => p.Id == id)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        if (rowsAffected == 0)
+        {
+            throw new NotFoundException($"Product with id {id} not found");
+        }
+    }
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

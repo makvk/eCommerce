@@ -34,4 +34,17 @@ public class Product
         Price = price;
         LastUpdatedAt =  DateTimeOffset.UtcNow;
     }
+    
+    public void UpdateDetails(
+        string name,
+        string description,
+        Money price,
+        int stockQuantity)
+    {
+        Name = name;
+        Description = description;
+        Price = price;
+        StockQuantity = stockQuantity;
+        LastUpdatedAt =  DateTimeOffset.UtcNow;
+    }
 }

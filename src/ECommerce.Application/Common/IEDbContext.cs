@@ -10,6 +10,9 @@ public interface IEDbContext
     DbSet<Order> Orders { get; set; }
     
     Task AddCustomerAsync(Customer customer, CancellationToken cancellationToken);
+    Task<Product?> GetProductByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task AddProductAsync(Product product, CancellationToken cancellationToken);
+    Task RemoveProductByIdAsync(Guid id, CancellationToken cancellationToken);
     
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
