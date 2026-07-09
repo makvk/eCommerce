@@ -82,8 +82,6 @@ if (app.Environment.IsDevelopment())
 {
     app.MapScalarApiReference();
     app.MapSwagger("/openapi/{documentName}.json");
-    app.MapGet("/", () => Results.Redirect("/scalar/v1"));
-    app.MapGet("/health", () => Results.Json(new { status = "ok", message = "ok" }));
 }
 
 app.UseAuthentication();
