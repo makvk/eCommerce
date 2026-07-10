@@ -1,4 +1,8 @@
+.PHONY: run apiadd appadd infadd db-up db-logs db-down
+
 run:
+	make db-down
+	make db-up
 	dotnet run --project ./src/ECommerce.Api
 
 apiadd:

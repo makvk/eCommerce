@@ -1,3 +1,4 @@
+using ECommerce.Application.Common.Exceptions;
 using ECommerce.Application.Features.Products;
 using ECommerce.Domain.Entities;
 using MediatR;
@@ -29,7 +30,7 @@ public class ProductsController(IMediator mediator) : ControllerBase
         var product = await _mediator.Send(query, cancellationToken);
         if (product == null)
         {
-            return NotFound("Product not found");
+            throw new NotFoundException($"Product with id {id} was not found.");
         }
         return Ok(product);
     }

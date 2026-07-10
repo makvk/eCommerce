@@ -1,4 +1,5 @@
 using System.Text;
+using ECommerce.Api.Middleware;
 using ECommerce.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -83,6 +84,8 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
     app.MapSwagger("/openapi/{documentName}.json");
 }
+
+app.UseMiddleware<ErrorHandlingMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
