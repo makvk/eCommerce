@@ -1,6 +1,5 @@
 using ECommerce.Application.Common.Exceptions;
 using ECommerce.Application.Features.Products;
-using ECommerce.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

@@ -1,6 +1,8 @@
 using System.Text;
 using ECommerce.Api.Middleware;
+using ECommerce.Application.Common;
 using ECommerce.Infrastructure.Persistence;
+using ECommerce.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -15,6 +17,9 @@ var services = builder.Services;
 // позже вынести в отдельный метод расширения
 services.AddScoped<ECommerce.Application.Common.IJwtTokenGenerator, ECommerce.Infrastructure.Security.JwtTokenGenerator>();
 services.AddScoped<ECommerce.Application.Common.IPasswordHasher, ECommerce.Infrastructure.Security.PasswordHasher>();
+
+services.AddHttpContextAccessor();
+services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 services.AddControllers();
 // Регистрация контекста работы с бд в DI
