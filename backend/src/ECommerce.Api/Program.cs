@@ -1,86 +1,12 @@
-using System.Text;
 using ECommerce.Api.Middleware;
-using ECommerce.Application.Common;
-using ECommerce.Infrastructure.Persistence;
-using ECommerce.Infrastructure.Services;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi;
-using FluentValidation;
-using MediatR;
+using ECommerce.Infrastructure;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var services = builder.Services;
 
-// позже вынести в отдельный метод расширения
-services.AddScoped<ECommerce.Application.Common.IJwtTokenGenerator, ECommerce.Infrastructure.Security.JwtTokenGenerator>();
-services.AddScoped<ECommerce.Application.Common.IPasswordHasher, ECommerce.Infrastructure.Security.PasswordHasher>();
-
-services.AddHttpContextAccessor();
-services.AddScoped<ICurrentUserService, CurrentUserService>();
-
-services.AddControllers();
-// Регистрация контекста работы с бд в DI
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
-services.AddDbContext<ECommerce.Application.Common.IEDbContext, EDbContext>(options => 
-    options.UseNpgsql(connectionString));
-
-// Регистрация MediatR
-services.AddMediatR(cfg =>
-{
-    cfg.RegisterServicesFromAssembly(typeof(ECommerce.Application.Common.IEDbContext).Assembly);
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ECommerce.Infrastructure.Security.ValidationBehavior<,>));
-});
-
-services.AddValidatorsFromAssembly(typeof(ECommerce.Application.Common.IEDbContext).Assembly);
-// Настройка Swagger
-services.AddEndpointsApiExplorer()
-    .AddSwaggerGen(c =>
-    {
-        c.CustomSchemaIds(type => type.ToString().Replace("+", "."));
-        
-        c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-        {
-            Description = @"JWT Authorization header using the Bearer scheme.",
-            Name = "Authorization",
-            In = ParameterLocation.Header,
-            Type = SecuritySchemeType.Http,
-            Scheme = "Bearer"
-        });
-        
-        c.AddSecurityRequirement(doc => new OpenApiSecurityRequirement
-        {
-            {
-                new OpenApiSecuritySchemeReference("Bearer"),
-                new List<string>()
-            }
-        });
-    });
-
-// Настройка авторизации
-var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["Secret"] ?? throw new InvalidOperationException("JWT Secret не найден!");
-
-services.AddAuthentication("Bearer")
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters()
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettings["Issuer"],
-            ValidAudience = jwtSettings["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(secretKey)
-            )
-        };
-    });
-services.AddAuthorization();
+services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
