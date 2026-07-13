@@ -13,7 +13,7 @@ public class AddProduct
     
     public class CommandValidator : AbstractValidator<Command>
     {
-        private readonly List<string> _currencies = ["RUB", "EUR", "USD"];
+        private readonly List<string> _currencies = ["RUB"];
         public CommandValidator()
         {
             RuleFor(x => x.Name)

@@ -31,6 +31,14 @@ public static class DependencyInjection
         services.AddDbContext<IEDbContext, EDbContext>(options => 
             options.UseNpgsql(connectionString));
         
+        //Redis
+        var redisConnectionString = configuration.GetConnectionString("Redis");
+        services.AddStackExchangeRedisCache(options =>
+        {
+            options.Configuration = redisConnectionString;
+            options.InstanceName = configuration["RedisSettings:InstanceName"];
+        });
+        
         // Регистрация MediatR
         services.AddMediatR(cfg =>
         {

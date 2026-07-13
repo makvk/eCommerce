@@ -9,6 +9,7 @@ public class Product
     public string Description  { get; private set; }
     public Money Price { get; private set; }
     public int StockQuantity { get; private set; }
+    public string? ImageUrl { get; set; }
     public DateTimeOffset LastUpdatedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; init; }
 

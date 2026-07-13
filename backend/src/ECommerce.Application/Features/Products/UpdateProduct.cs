@@ -18,7 +18,7 @@ public class UpdateProduct
 
     public class CommandValidator : AbstractValidator<Command>
     {
-        private readonly List<string> _currencies = ["RUB", "EUR", "USD"];
+        private readonly List<string> _currencies = ["RUB"];
 
         public CommandValidator()
         {

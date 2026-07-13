@@ -15,6 +15,13 @@ services:
     networks:
       - ecommerce-network
 
+  ecommerce-cache:
+    container_name: ecommerce-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
   ecommerce-api:
     image: ecommerce-api-image
     container_name: ecommerce-webapi
