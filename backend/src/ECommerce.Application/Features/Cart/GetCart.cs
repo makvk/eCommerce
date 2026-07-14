@@ -8,7 +8,7 @@ namespace ECommerce.Application.Features.Cart;
 
 public class GetCart
 {
-    public record ResponseDto(List<CartItem> CartItems);
+    public record ResponseDto(Domain.Entities.Cart Cart);
 
     public record Query() : IRequest<ResponseDto>;
 
@@ -27,10 +27,11 @@ public class GetCart
             var productsString = await _distributedCache.GetStringAsync(userId, cancellationToken);
             if (string.IsNullOrEmpty(productsString))
             {
-                return new ResponseDto(new List<CartItem>());
+                return new ResponseDto(new Domain.Entities.Cart(new List<CartItem>()));
             }
-            var cartItems = JsonSerializer.Deserialize<List<CartItem>>(productsString);
-            return new ResponseDto(cartItems ?? new List<CartItem>());
+            var cart = JsonSerializer.Deserialize<Domain.Entities.Cart>(productsString)
+                ?? new Domain.Entities.Cart();
+            return new ResponseDto(cart);
         }
     }
 }

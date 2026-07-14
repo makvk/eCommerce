@@ -1,50 +1,74 @@
-
-
 using System.Text.Json;
-using ECommerce.Application.Common.Exceptions;
+using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ECommerce.Api.Middleware;
 
-public class ErrorHandlingMiddleware(
-    RequestDelegate next)
+public class ExceptionHandlingMiddleware(RequestDelegate next)
 {
     private readonly RequestDelegate _next = next;
+    private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+    {
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+    };
 
-    public async Task InvokeAsync(HttpContext httpContext)
+    public async Task InvokeAsync(HttpContext context)
     {
         try
         {
-            await _next(httpContext);
-            if (httpContext.Response.StatusCode == 401)
-            {
-                
-            }
+            await _next(context);
+        }
+        catch (ValidationException validationException)
+        {
+            await HandleValidationExceptionAsync(context, validationException);
         }
         catch (Exception ex)
         {
-            await HandleExceptionAsync(ex, httpContext);
+            await HandleGenericExceptionAsync(context, ex);
         }
     }
-    private async Task HandleExceptionAsync(Exception ex, HttpContext httpContext)
+
+    private static async Task HandleValidationExceptionAsync(HttpContext context, ValidationException exception)
     {
-        httpContext.Response.ContentType = "application/json";
-        httpContext.Response.StatusCode = ex switch
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+        var errors = exception.Errors
+            .GroupBy(e => e.PropertyName)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(e => e.ErrorMessage).ToArray()
+            );
+
+        var problemDetails = new ProblemDetails
         {
-            // Ошибки валидации
-            FluentValidation.ValidationException => StatusCodes.Status400BadRequest,
-
-            // Кастомные ошибки
-            NotFoundException => StatusCodes.Status404NotFound,
-            ConflictException => StatusCodes.Status409Conflict,
-            BadRequestException => StatusCodes.Status400BadRequest,
-
-            _ => StatusCodes.Status500InternalServerError
+            Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+            Title = "One or more validation errors occurred.",
+            Status = StatusCodes.Status400BadRequest,
+            Instance = context.Request.Path
         };
+
+        problemDetails.Extensions.Add("errors", errors);
+        
+        var json = JsonSerializer.Serialize(problemDetails, JsonOptions);
+        await context.Response.WriteAsync(json);
+    }
+
+    private static async Task HandleGenericExceptionAsync(HttpContext context, Exception exception)
+    {
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+
         var response = new
         {
-            error = ex.Message,
-            statusCode = httpContext.Response.StatusCode
+            error = "Internal server error occurred.",
+#if DEBUG
+            details = exception.Message
+#endif
         };
-        await httpContext.Response.WriteAsync(JsonSerializer.Serialize(response));
+
+        var json = JsonSerializer.Serialize(response, JsonOptions);
+        await context.Response.WriteAsync(json);
     }
 }

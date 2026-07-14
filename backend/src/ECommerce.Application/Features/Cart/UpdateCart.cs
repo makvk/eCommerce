@@ -18,7 +18,7 @@ public class UpdateCart
         public CommandValidator()
         {
             RuleFor(c => c.ProductId)
-                .NotEmpty();
+                .NotNull().NotEmpty();
             RuleFor(c => c.Quantity)
                 .GreaterThan(0);
         }

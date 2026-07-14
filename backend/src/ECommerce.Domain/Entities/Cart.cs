@@ -1,13 +1,16 @@
+using System.Text.Json.Serialization;
 using ECommerce.Domain.Records;
 
 namespace ECommerce.Domain.Entities;
 
 public class Cart
 {
+    [JsonInclude]
     public List<CartItem> Items { get; private set; } = new();
     
-    private Cart() { }
-    
+
+    public Cart() { }
+
     public Cart(List<CartItem> cartItems)
     {
         Items = cartItems;

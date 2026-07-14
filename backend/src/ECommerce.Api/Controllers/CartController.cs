@@ -27,4 +27,21 @@ public class CartController(IMediator mediator) : ControllerBase
         await _mediator.Send(command);
         return Ok();
     }
+
+    [HttpDelete]
+    [Authorize(Roles = "Customer")]
+    public async Task<IActionResult> ClearCart()
+    {
+        await _mediator.Send(new ClearCart.Command());
+        return NoContent();
+    }
+    
+    [HttpDelete("items/{id:guid}")]
+    [Authorize(Roles = "Customer")]
+    public async Task<IActionResult> RemoveCartItem(
+        [FromRoute] Guid id)
+    {
+        await _mediator.Send(new RemoveCartItem.Command(id));
+        return NoContent();
+    }
 }

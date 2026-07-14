@@ -1,4 +1,3 @@
-using ECommerce.Api.Middleware;
 using ECommerce.Infrastructure;
 using Scalar.AspNetCore;
 
@@ -16,7 +15,7 @@ if (app.Environment.IsDevelopment())
     app.MapSwagger("/openapi/{documentName}.json");
 }
 
-app.UseMiddleware<ErrorHandlingMiddleware>();
+app.UseMiddleware<ECommerce.Api.Middleware.ExceptionHandlingMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();

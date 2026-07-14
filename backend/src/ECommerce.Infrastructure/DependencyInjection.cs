@@ -32,7 +32,11 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
         
         //Redis
+#if DEBUG
+        var redisConnectionString = "localhost:6379";
+#else
         var redisConnectionString = configuration.GetConnectionString("Redis");
+#endif
         services.AddStackExchangeRedisCache(options =>
         {
             options.Configuration = redisConnectionString;
@@ -45,7 +49,7 @@ public static class DependencyInjection
             cfg.RegisterServicesFromAssembly(typeof(IEDbContext).Assembly);
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(Security.ValidationBehavior<,>));
         });
-    
+        
         services.AddValidatorsFromAssembly(typeof(IEDbContext).Assembly);
         
         // Настройка Swagger

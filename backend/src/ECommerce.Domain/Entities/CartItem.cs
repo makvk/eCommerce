@@ -9,11 +9,11 @@ public class CartItem(
     Money price,
     string? imageUrl)
 {
-    public Guid ProductId { get; private set; } = productId;
-    public string ProductName { get; private set; } = productName;
-    public int Quantity { get; private set; } = quantity;
-    public Money Price { get; private set; } = price;
-    public string? ImageUrl { get; private set; } = imageUrl;
+    public Guid ProductId { get; init; } = productId;
+    public string ProductName { get; init; } = productName;
+    public int Quantity { get; set; } = quantity;
+    public Money Price { get; set; } = price;
+    public string? ImageUrl { get; set; } = imageUrl;
 
     public void UpdateQuantity(int quantity)
     {

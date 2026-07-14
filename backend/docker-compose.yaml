@@ -21,6 +21,11 @@ services:
     ports:
       - "6379:6379"
     restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - ecommerce-network
 
   ecommerce-api:
     image: ecommerce-api-image
@@ -29,7 +34,7 @@ services:
       context: .
       dockerfile: src/ECommerce.Api/Dockerfile
     ports:
-      - "8000:8080" # Внешний порт 8000 перенаправляет на внутренний 8080 контейнера
+      - "8000:8080"
       - "8001:8081"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -41,6 +46,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   ecommerce-network:
