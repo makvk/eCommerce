@@ -25,7 +25,7 @@ public class CartController(IMediator mediator) : ControllerBase
         [FromBody] UpdateCart.Command command)
     {
         await _mediator.Send(command);
-        return Ok();
+        return NoContent();
     }
 
     [HttpDelete]
@@ -42,6 +42,15 @@ public class CartController(IMediator mediator) : ControllerBase
         [FromRoute] Guid id)
     {
         await _mediator.Send(new RemoveCartItem.Command(id));
+        return NoContent();
+    }
+
+    [HttpPatch("items")]
+    [Authorize(Roles = "Customer")]
+    public async Task<IActionResult> AdjustCartItemQuantity(
+        [FromBody] AdjustCartItemQuantity.Command command)
+    {
+        await  _mediator.Send(command);
         return NoContent();
     }
 }
