@@ -1,5 +1,6 @@
 using System.Text;
 using ECommerce.Application.Common;
+using ECommerce.Infrastructure.BackgroundServices;
 using ECommerce.Infrastructure.Persistence;
 using ECommerce.Infrastructure.Services;
 using FluentValidation;
@@ -23,6 +24,9 @@ public static class DependencyInjection
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+        services.AddHttpClient<GetCurrencyRateApi>();
+        services.AddHostedService<CurrencyUpdateWorker>();
         
         services.AddControllers();
         // Регистрация контекста работы с бд в DI
