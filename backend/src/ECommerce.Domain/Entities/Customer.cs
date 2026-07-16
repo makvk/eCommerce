@@ -36,4 +36,10 @@ public class Customer
         Balance = Balance with { Amount = Balance.Amount + amount };
         LastUpdatedAt = DateTimeOffset.UtcNow;
     }
+    
+    public void UpdateBalance(Money newBalance)
+    {
+        Balance = newBalance;
+        LastUpdatedAt = DateTimeOffset.UtcNow;
+    }
 }

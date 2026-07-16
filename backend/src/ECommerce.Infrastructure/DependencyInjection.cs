@@ -1,5 +1,6 @@
 using System.Text;
 using ECommerce.Application.Common;
+using ECommerce.Domain.Modles;
 using ECommerce.Infrastructure.BackgroundServices;
 using ECommerce.Infrastructure.Persistence;
 using ECommerce.Infrastructure.Services;
@@ -24,9 +25,12 @@ public static class DependencyInjection
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-
+        
+        services.AddSingleton<IConvertCurrencyService, ConvertCurrencyService>();
+        
         services.AddHttpClient<GetCurrencyRateApi>();
         services.AddHostedService<CurrencyUpdateWorker>();
+        services.Configure<CurrencyOptions>(configuration.GetSection("CurrencySettings"));
         
         services.AddControllers();
         // Регистрация контекста работы с бд в DI

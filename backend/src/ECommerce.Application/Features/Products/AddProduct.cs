@@ -1,9 +1,11 @@
 using System.Data.SqlTypes;
 using ECommerce.Application.Common;
 using ECommerce.Domain.Entities;
+using ECommerce.Domain.Modles;
 using ECommerce.Domain.Records;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Options;
 
 namespace ECommerce.Application.Features.Products;
 
@@ -13,8 +15,7 @@ public class AddProduct
     
     public class CommandValidator : AbstractValidator<Command>
     {
-        private readonly List<string> _currencies = ["RUB"];
-        public CommandValidator()
+        public CommandValidator(IOptions<CurrencyOptions> options)
         {
             RuleFor(x => x.Name)
                 .NotEmpty()
@@ -26,8 +27,8 @@ public class AddProduct
                 .NotNull();
             RuleFor(x => x.Price.Currency)
                 .NotNull()
-                .Must(x => _currencies.Contains(x))
-                .WithMessage(x => $"Currency {x} does not exist");
+                .Must(c => c.ToUpper() == options.Value.DefaultCurrency)
+                .WithMessage($"Currency not supported");
             RuleFor(x => x.Price.Amount)
                 .NotNull()
                 .GreaterThan(0);

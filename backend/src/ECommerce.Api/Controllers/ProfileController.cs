@@ -21,4 +21,13 @@ public class ProfileController(IMediator mediator) : ControllerBase
         
         return Ok(customer);
     }
+
+    [HttpPatch("change-currency")]
+    [Authorize(Roles = "Customer")]
+    public async Task<IActionResult> ChangeCurrency(
+        [FromBody] ChangeCurrency.Command command)
+    {
+        await _mediator.Send(command);
+        return NoContent();
+    }
 }
