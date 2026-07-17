@@ -19,7 +19,7 @@ public class ChangeCurrency
         public CommandValidator(IOptions<CurrencyOptions> options)
         {
             RuleFor(c => c.NewCurrency)
-                .Must(c => options.Value.SupportedCurrencies.Contains(c.ToUpper()))
+                .Must(c => options.Value.SupportedCurrencies.Contains(c))
                 .WithMessage($"Currency not supported");
         }
     }

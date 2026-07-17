@@ -12,6 +12,7 @@ public class ProductsController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
     [HttpGet]
+    [EndpointDescription("Get all products")]
     public async Task<IActionResult> GetProducts(
         [FromQuery] GetProducts.Query query,
         CancellationToken cancellationToken)
@@ -21,6 +22,7 @@ public class ProductsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [EndpointDescription("Get product by id")]
     public async Task<IActionResult> GetProductById(
         [FromRoute] Guid id,
         CancellationToken cancellationToken)
@@ -36,6 +38,7 @@ public class ProductsController(IMediator mediator) : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
+    [EndpointDescription("Add a new product")]
     public async Task<IActionResult> AddProduct(
         [FromBody] AddProduct.Command product,
         CancellationToken cancellationToken)
@@ -46,6 +49,7 @@ public class ProductsController(IMediator mediator) : ControllerBase
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Admin")]
+    [EndpointDescription("Delete product by id")]
     public async Task<IActionResult> DeleteProductById(
         [FromRoute] Guid id,
         CancellationToken cancellationToken)
@@ -56,6 +60,7 @@ public class ProductsController(IMediator mediator) : ControllerBase
     }
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Admin")]
+    [EndpointDescription("Update product by id")]
     public async Task<IActionResult> UpdateProduct(
         [FromRoute] Guid id,
         [FromBody] UpdateProduct.CommandDto commandDto,

@@ -38,7 +38,9 @@ public class UpdateCart
             var userId = _currentUserService.UserId
                          ?? throw new UnauthorizedAccessException("User not found");
 
-            var product = await _eDbContext.Products.FirstOrDefaultAsync(
+            var product = await _eDbContext.Products
+                              .AsNoTracking()
+                              .FirstOrDefaultAsync(
                 p => p.Id == request.ProductId, cancellationToken)
                 ?? throw new NotFoundException("Product not found");
 
@@ -73,7 +75,7 @@ public class UpdateCart
             }
             else
             {
-                currentCartItem.UpdateQuantity(request.Quantity);
+                currentCartItem.AddQuantity(request.Quantity);
             }
             
             var updatedCartString = JsonSerializer.Serialize(cart);

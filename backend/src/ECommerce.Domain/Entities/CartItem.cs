@@ -19,4 +19,8 @@ public class CartItem(
     {
         Quantity = quantity;
     }
+    public void AddQuantity(int quantity)
+    {
+        Quantity += quantity;
+    }
 }

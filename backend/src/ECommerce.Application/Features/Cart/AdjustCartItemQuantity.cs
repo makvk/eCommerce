@@ -41,6 +41,7 @@ public class AdjustCartItemQuantity
                            ?? throw new NotFoundException("Cart item not found");
             var currentQuantity = cartItem.Quantity + request.Delta;
             var product = await _eDbContext.Products
+                              .AsNoTracking()
                               .FirstOrDefaultAsync(p => p.Id == request.ProductId, cancellationToken)
                           ?? throw new NotFoundException("Product not found");
             var stockQuantity = product.StockQuantity;

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ECommerce.Application.Common;
+using ECommerce.Domain.Records;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,18 +21,18 @@ public class CurrentUserService(
     public string? Email =>
         _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.Email)?.Value;
 
-    public async Task<string?> GetCurrencyAsync(CancellationToken cancellationToken = default)
+    public async Task<Money?> GetBalanceAsync(CancellationToken cancellationToken = default)
     {
         if (UserId == null || !Guid.TryParse(UserId, out var userIdGuid))
             return null;
         
-        var customer = await _eDbContext.Customers
+        var balance = await _eDbContext.Customers
             .AsNoTracking()
             .Where(c => c.Id == userIdGuid)
-            .Select(c => new { c.Balance.Currency })
+            .Select(c => new Money(c.Balance.Currency, c.Balance.Amount))
             .FirstOrDefaultAsync(cancellationToken);
 
-        return customer?.Currency;
+        return balance;
     }
 
 

@@ -17,7 +17,9 @@ public class GetProducts
             Query request, 
             CancellationToken cancellationToken)
         {
-            var products = await _eDbContext.Products.ToListAsync(cancellationToken);
+            var products = await _eDbContext.Products
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
             return products;
         }
     }

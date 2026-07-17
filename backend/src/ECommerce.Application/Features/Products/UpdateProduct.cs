@@ -32,7 +32,7 @@ public class UpdateProduct
                 .NotNull();
             RuleFor(x => x.Data.Price.Currency)
                 .NotNull()
-                .Must(c => options.Value.SupportedCurrencies.Contains(c.ToUpper()))
+                .Must(c => options.Value.SupportedCurrencies.Contains(c))
                 .WithMessage($"Currency not supported");
             RuleFor(x => x.Data.Price.Amount)
                 .NotNull()

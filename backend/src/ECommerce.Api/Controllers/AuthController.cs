@@ -13,6 +13,7 @@ public class AuthController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
     [HttpPost]
     [Route("login")]
+    [EndpointDescription("Auth")]
     public async Task<IActionResult> Login(
             [FromBody] Login.Command command,
             CancellationToken cancellationToken
@@ -24,6 +25,7 @@ public class AuthController(IMediator mediator) : ControllerBase
     
     [HttpPost]
     [Route("register")]
+    [EndpointDescription("Registration")]
     public async Task<IActionResult> Register(
         [FromBody] Register.Command command,
         CancellationToken cancellationToken

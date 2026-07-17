@@ -48,4 +48,10 @@ public class Product
         StockQuantity = stockQuantity;
         LastUpdatedAt =  DateTimeOffset.UtcNow;
     }
+    
+    public void UpdateStockQuantity(int quantity)
+    {
+        StockQuantity = quantity;
+        LastUpdatedAt =  DateTimeOffset.UtcNow;
+    }
 }

@@ -1,3 +1,5 @@
+using ECommerce.Domain.Records;
+
 namespace ECommerce.Application.Common;
 
 public interface ICurrentUserService
@@ -5,6 +7,6 @@ public interface ICurrentUserService
     string? UserId { get; }
     string? Role { get; }
     string? Email { get; }
-    Task<string?> GetCurrencyAsync(CancellationToken cancellationToken = default);
+    Task<Money?> GetBalanceAsync(CancellationToken cancellationToken = default);
     bool IsAuthenticated { get; }
 }

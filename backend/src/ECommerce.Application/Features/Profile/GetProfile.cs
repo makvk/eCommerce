@@ -27,6 +27,7 @@ public class GetProfile
             }
 
             var customer = await _eDbContext.Customers
+                .AsNoTracking()
                 .FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
 
             if (customer == null) throw new NotFoundException("Customer not found");

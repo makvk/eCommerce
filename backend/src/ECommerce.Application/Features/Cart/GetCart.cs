@@ -29,9 +29,9 @@ public class GetCart
         {
             var userId = _currentUserService.UserId 
                          ?? throw new UnauthorizedAccessException("User not found");
-            var userCurrency = await _currentUserService.GetCurrencyAsync(cancellationToken)
+            var userBalance = await _currentUserService.GetBalanceAsync(cancellationToken)
                 ?? throw new UnauthorizedAccessException("User not found");
-            
+            var userCurrency = userBalance.Currency;
             var productsString = await _distributedCache.GetStringAsync(userId, cancellationToken);
             if (string.IsNullOrEmpty(productsString))
             {

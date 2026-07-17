@@ -10,6 +10,7 @@ public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(option
     public DbSet<Customer> Customers { get; set; }
     public DbSet<Product> Products { get; set; }
     public DbSet<Order> Orders { get; set; }
+    public DbSet<OrderItem> OrderItems { get; set; }
     
     // Users
     public async Task AddCustomerAsync(Customer customer, CancellationToken cancellationToken)
@@ -43,7 +44,13 @@ public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(option
             throw new NotFoundException($"Product with id {id} not found");
         }
     }
-
+    
+    // Orders
+    public async Task AddOrderAsync(Order order, CancellationToken cancellationToken)
+    {
+        await Orders.AddAsync(order, cancellationToken);
+        await SaveChangesAsync(cancellationToken);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -146,6 +153,17 @@ public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(option
     
             entity.Property(e => e.CustomerId)
                 .IsRequired();
+
+            entity.ComplexProperty(e => e.TotalPrice, builder =>
+            {
+                builder.Property(b => b.Amount)
+                    .IsRequired()
+                    .HasPrecision(18, 2);
+
+                builder.Property(b => b.Currency)
+                    .IsRequired()
+                    .HasMaxLength(3);
+            });
             
             entity.ComplexProperty(e => e.Address, builder =>
             {
@@ -197,7 +215,11 @@ public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(option
 
             entity.Property(ei => ei.ProductId)
                 .IsRequired();
-
+            
+            entity.Property(e => e.Title)
+                .IsRequired()
+                .HasMaxLength(50);
+            
             entity.Property(ei => ei.Quantity)
                 .IsRequired();
 

@@ -10,6 +10,7 @@ public class Order
     
     public Guid Id { get; init; }
     public Guid CustomerId { get; init; }
+    public Money TotalPrice { get; private set; }
     public Address Address { get; private set; }
     public Status Status { get; private set; }
     public DateTimeOffset CreatedAt { get; init; }
@@ -29,7 +30,7 @@ public class Order
     
     private Order() {} // ctor for ef core
 
-    public void AddItem(Guid productId, int quantity, Money unitPrice)
+    public void AddItem(Guid productId, string title, int quantity, Money unitPrice)
     {
         if (quantity <= 0)
         {
@@ -47,8 +48,13 @@ public class Order
         }
         else
         {
-            _items.Add(new OrderItem(Id, productId, quantity, unitPrice));
+            _items.Add(new OrderItem(Id, productId, title, quantity, unitPrice));
         }
         LastUpdatedAt = DateTimeOffset.UtcNow;
+    }
+    
+    public void SetTotalPrice(Money totalPrice)
+    {
+        TotalPrice = totalPrice;
     }
 }

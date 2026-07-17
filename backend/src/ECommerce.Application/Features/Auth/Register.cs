@@ -1,4 +1,5 @@
 using ECommerce.Application.Common;
+using ECommerce.Application.Common.Exceptions;
 using ECommerce.Domain.Entities;
 using ECommerce.Domain.Records;
 using FluentValidation;
@@ -47,7 +48,7 @@ public class Register
             );
             if (user != null)
             {
-                throw new Exception("Email already exists");
+                throw new BadRequestException("Email already exists");
             }
             var hashedPassword = _passwordHasher.HashPassword(request.User.Password!);
             var newUser = new Customer(

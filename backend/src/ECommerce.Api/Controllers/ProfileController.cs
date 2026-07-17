@@ -13,6 +13,7 @@ public class ProfileController(IMediator mediator) : ControllerBase
     
     [HttpGet]
     [Authorize(Roles = "Customer")]
+    [EndpointDescription("Get user profile information")]
     public async Task<IActionResult> GetProfile(
         [FromQuery] GetProfile.Query query,
         CancellationToken cancellationToken)
@@ -24,6 +25,7 @@ public class ProfileController(IMediator mediator) : ControllerBase
 
     [HttpPatch("change-currency")]
     [Authorize(Roles = "Customer")]
+    [EndpointDescription("Change user currency")]
     public async Task<IActionResult> ChangeCurrency(
         [FromBody] ChangeCurrency.Command command)
     {

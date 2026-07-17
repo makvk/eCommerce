@@ -41,7 +41,9 @@ public class Login
         private readonly IPasswordHasher _passwordHasher = passwordHasher;
         public async Task<AuthResult> Handle(Command request, CancellationToken cancellationToken)
         {
-            var user = await _eDbContext.Customers.FirstOrDefaultAsync(
+            var user = await _eDbContext.Customers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
                 u => u.Email == request.User.Email,
                 cancellationToken
             );

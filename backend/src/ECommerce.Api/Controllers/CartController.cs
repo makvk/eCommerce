@@ -13,6 +13,7 @@ public class CartController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = "Customer")]
+    [EndpointDescription("Get cart")]
     public async Task<IActionResult> GetCart()
     {
         var response = await _mediator.Send(new GetCart.Query());
@@ -21,6 +22,7 @@ public class CartController(IMediator mediator) : ControllerBase
 
     [HttpPost("items")]
     [Authorize(Roles = "Customer")]
+    [EndpointDescription("Add item(s) to cart")]
     public async Task<IActionResult> UpdateCart(
         [FromBody] UpdateCart.Command command)
     {
@@ -30,6 +32,7 @@ public class CartController(IMediator mediator) : ControllerBase
 
     [HttpDelete]
     [Authorize(Roles = "Customer")]
+    [EndpointDescription("Remove items from cart")]
     public async Task<IActionResult> ClearCart()
     {
         await _mediator.Send(new ClearCart.Command());
@@ -38,6 +41,7 @@ public class CartController(IMediator mediator) : ControllerBase
     
     [HttpDelete("items/{id:guid}")]
     [Authorize(Roles = "Customer")]
+    [EndpointDescription("Remove item from cart")]
     public async Task<IActionResult> RemoveCartItem(
         [FromRoute] Guid id)
     {
@@ -47,6 +51,7 @@ public class CartController(IMediator mediator) : ControllerBase
 
     [HttpPatch("items")]
     [Authorize(Roles = "Customer")]
+    [EndpointDescription("Adjust quantity of cart item(+-)")]
     public async Task<IActionResult> AdjustCartItemQuantity(
         [FromBody] AdjustCartItemQuantity.Command command)
     {

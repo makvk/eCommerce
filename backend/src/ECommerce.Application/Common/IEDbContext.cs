@@ -13,6 +13,7 @@ public interface IEDbContext
     Task<Product?> GetProductByIdAsync(Guid id, CancellationToken cancellationToken);
     Task AddProductAsync(Product product, CancellationToken cancellationToken);
     Task RemoveProductByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task AddOrderAsync(Order order, CancellationToken cancellationToken);
     
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

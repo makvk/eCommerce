@@ -27,7 +27,7 @@ public class AddProduct
                 .NotNull();
             RuleFor(x => x.Price.Currency)
                 .NotNull()
-                .Must(c => c.ToUpper() == options.Value.DefaultCurrency)
+                .Must(c => c == options.Value.DefaultCurrency)
                 .WithMessage($"Currency not supported");
             RuleFor(x => x.Price.Amount)
                 .NotNull()
