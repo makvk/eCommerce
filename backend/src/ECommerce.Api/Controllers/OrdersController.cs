@@ -13,6 +13,7 @@ public class OrdersController(IMediator mediator) : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Customer")]
+    [EndpointDescription("Create order")]
     public async Task<IActionResult> CreateOrder(
         [FromBody] CreateOrder.Command command)
     {
@@ -22,9 +23,20 @@ public class OrdersController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = "Customer")]
+    [EndpointDescription("Get orders list")]
     public async Task<IActionResult> GetOrders()
     {
         var orders = await _mediator.Send(new GetOrders.Query());
         return Ok(orders);
+    }
+
+    [HttpGet("{id:guid}")]
+    [EndpointDescription("Get order by id")]
+    [Authorize(Roles = "Customer")]
+    public async Task<IActionResult> GetOrderById(
+        [FromRoute] Guid id)
+    {
+        var response = await _mediator.Send(new GetOrderById.Command(id));
+        return Ok(response);
     }
 }

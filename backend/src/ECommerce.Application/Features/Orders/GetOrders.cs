@@ -1,5 +1,6 @@
 using ECommerce.Application.Common;
 using ECommerce.Domain.Entities;
+using ECommerce.Domain.Enums;
 using ECommerce.Domain.Records;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,7 @@ namespace ECommerce.Application.Features.Orders;
 public class GetOrders
 {
     public record OrderItemDto(Guid ProductId, string Title, int Quantity, Money Price);
-    public record OrderDto(Guid OrderId, List<OrderItemDto> Items, Money TotalPrice);
+    public record OrderDto(Guid OrderId, Status Status, List<OrderItemDto> Items, Money TotalPrice);
     public record ResponseDto(List<OrderDto> Orders);
     
     public record Query() : IRequest<ResponseDto>;
@@ -32,6 +33,7 @@ public class GetOrders
                 .Include(o => o.Items)
                 .Select(o => new OrderDto(
                     o.Id,
+                    o.Status,
                     o.Items.Select(i => new OrderItemDto(
                         i.ProductId,
                         i.Title,
