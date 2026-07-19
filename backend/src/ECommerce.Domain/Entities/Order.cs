@@ -56,5 +56,12 @@ public class Order
     public void SetTotalPrice(Money totalPrice)
     {
         TotalPrice = totalPrice;
+        LastUpdatedAt = DateTimeOffset.UtcNow;
+    }
+    
+    public void UpdateStatus(Status status)
+    {
+        Status = status;
+        LastUpdatedAt = DateTimeOffset.UtcNow;
     }
 }

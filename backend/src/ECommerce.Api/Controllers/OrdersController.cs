@@ -13,7 +13,7 @@ public class OrdersController(IMediator mediator) : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Customer")]
-    [EndpointDescription("Create order")]
+    [EndpointDescription("Create new order from active cart")]
     public async Task<IActionResult> CreateOrder(
         [FromBody] CreateOrder.Command command)
     {
@@ -23,7 +23,7 @@ public class OrdersController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = "Customer")]
-    [EndpointDescription("Get orders list")]
+    [EndpointDescription("Get orders history for current customer")]
     public async Task<IActionResult> GetOrders()
     {
         var orders = await _mediator.Send(new GetOrders.Query());
@@ -31,12 +31,22 @@ public class OrdersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [EndpointDescription("Get order by id")]
     [Authorize(Roles = "Customer")]
+    [EndpointDescription("Get detailed order information by id")]
     public async Task<IActionResult> GetOrderById(
         [FromRoute] Guid id)
     {
         var response = await _mediator.Send(new GetOrderById.Command(id));
         return Ok(response);
+    }
+
+    [HttpPatch("{id:guid}/cancel")]
+    [Authorize(Roles = "Customer")]
+    [EndpointDescription("Cancel order and return items to stock")]
+    public async Task<IActionResult> CancelOrder(
+        [FromRoute] Guid id)
+    {
+        await _mediator.Send(new CancelOrder.Command(id));
+        return NoContent();
     }
 }
