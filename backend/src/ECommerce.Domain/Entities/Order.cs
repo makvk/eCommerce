@@ -5,13 +5,13 @@ namespace ECommerce.Domain.Entities;
 
 public class Order
 {
-    private readonly List<OrderItem> _items;
+    private readonly List<OrderItem> _items = null!;
     public IReadOnlyList<OrderItem> Items => _items;
     
     public Guid Id { get; init; }
     public Guid CustomerId { get; init; }
-    public Money TotalPrice { get; private set; }
-    public Address Address { get; private set; }
+    public Money TotalPrice { get; private set; } = null!;
+    public Address Address { get; private set; } = null!;
     public Status Status { get; private set; }
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset LastUpdatedAt { get; private set; }

@@ -5,11 +5,11 @@ namespace ECommerce.Domain.Entities;
 public class Product
 {
     public Guid Id { get; init; }
-    public string Name { get; private set; }
-    public string Description  { get; private set; }
-    public Money Price { get; private set; }
+    public string Name { get; private set; } = null!;
+    public string Description  { get; private set; } = null!;
+    public Money Price { get; private set; } = null!;
     public int StockQuantity { get; private set; }
-    public string? ImageUrl { get; set; }
+    public string? ImageUrl { get; private set; }
     public DateTimeOffset LastUpdatedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; init; }
 

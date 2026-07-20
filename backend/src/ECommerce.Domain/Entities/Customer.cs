@@ -5,10 +5,10 @@ namespace ECommerce.Domain.Entities;
 public class Customer
 {
     public Guid Id { get; init; }
-    public string Email { get; private set; }
-    public string PasswordHash { get; private set; }
-    public FullName Name { get; private  set; }
-    public Money Balance { get; private set; }
+    public string Email { get; private set; } = null!;
+    public string PasswordHash { get; private set; } = null!;
+    public FullName Name { get; private  set; } = null!;
+    public Money Balance { get; private set; } = null!;
     public DateTimeOffset LastUpdatedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; init; }
     

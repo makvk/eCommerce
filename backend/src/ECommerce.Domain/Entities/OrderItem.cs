@@ -7,9 +7,9 @@ public class OrderItem
     public Guid Id { get; init; }
     public Guid OrderId { get; private set; }
     public Guid ProductId { get; private set; }
-    public string Title { get; init; } 
+    public string Title { get; init; } = null!;
     public int Quantity { get; private set; }
-    public Money PriceAtPurchase { get; private set; }
+    public Money PriceAtPurchase { get; private set; } = null!;
 
     public OrderItem(Guid orderId, Guid productId, string title, int quantity, Money priceAtPurchase)
     {
