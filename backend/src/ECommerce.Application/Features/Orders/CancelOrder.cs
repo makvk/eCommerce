@@ -45,15 +45,16 @@ public class CancelOrder
             
             var products = await _eDbContext.Products
                 .Where(p => productIds.Contains(p.Id))
-                .ToListAsync(cancellationToken);;
+                .ToListAsync(cancellationToken);
             foreach (var item in order.Items)
             {
                 var product = products.FirstOrDefault(p => p.Id == item.ProductId);
                 if (product == null)
                 {
-                    _logger.LogError($"Product {item.ToString()}, not found");
+                    _logger.LogWarning("Product {item}, not found", item.ToString());
                     continue;
                 }
+                _logger.LogInformation("Order item: {item} put to stock", item.ToString());
                 product.UpdateStockQuantity(product.StockQuantity + item.Quantity);
             }
             await _eDbContext.SaveChangesAsync(cancellationToken);

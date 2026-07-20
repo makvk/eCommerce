@@ -49,4 +49,33 @@ public class OrdersController(IMediator mediator) : ControllerBase
         await _mediator.Send(new CancelOrder.Command(id));
         return NoContent();
     }
+    [HttpPatch("{id:guid}/processing")]
+    [Authorize(Roles = "Admin")]
+    [EndpointDescription("Take order in process")]
+    public async Task<IActionResult> TakeOrderInProcess(
+        [FromRoute] Guid id)
+    {
+        await _mediator.Send(new TakeOrderInProcess.Command(id));
+        return NoContent();
+    }
+    
+    [HttpPatch("{id:guid}/shipped")]
+    [Authorize(Roles = "Admin")]
+    [EndpointDescription("Take order in process")]
+    public async Task<IActionResult> SetStatusToShipped(
+        [FromRoute] Guid id)
+    {
+        await _mediator.Send(new SetStatusToShipped.Command(id));
+        return NoContent();
+    }
+    
+    [HttpPatch("{id:guid}/delivered")]
+    [Authorize(Roles = "Admin")]
+    [EndpointDescription("Set status to delivered")]
+    public async Task<IActionResult> SetStatusToDelivered(
+        [FromRoute] Guid id)
+    {
+        await _mediator.Send(new SetStatusToDelivered.Command(id));
+        return NoContent();
+    }
 }

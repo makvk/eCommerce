@@ -27,6 +27,6 @@ public class OrderItem
 
     public override string ToString()
     {
-        return $"Id: {Id} | Title: {Title} | OrderId: {OrderId} | ProductId: {ProductId} | Quantity: {Quantity}";   
+        return $"Id: {Id} | Title: {Title} | Price: {PriceAtPurchase.ToString()} | OrderId: {OrderId} | ProductId: {ProductId} | Quantity: {Quantity}";   
     }
 }
