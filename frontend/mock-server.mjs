@@ -1,0 +1,432 @@
+/**
+ * Мок бэкенда для разработки фронта без Postgres/Redis/dotnet.
+ * Повторяет контракты ECommerce.Api один-в-один, включая формат ошибок.
+ * Данные живут в памяти и сбрасываются при перезапуске.
+ *
+ *   node mock-server.mjs        → http://localhost:5269
+ *
+ * Это НЕ замена настоящему API: логика упрощена, авторизация фейковая.
+ */
+import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
+
+const PORT = Number(process.env.MOCK_PORT ?? 5269);
+
+/* ─────────────────────────── данные ─────────────────────────── */
+
+const now = () => new Date().toISOString();
+
+const products = [
+  ["Механическая клавиатура Aurora", "75% раскладка, свитчи с тактильным откликом, hot-swap и алюминиевый корпус.", 12990, 14],
+  ["Наушники Vellum ANC", "Беспроводные, активное шумоподавление, 40 часов автономности.", 18490, 7],
+  ["Монитор Nord 27\" 4K", "IPS-матрица, 144 Гц, покрытие DCI-P3 98%, USB-C с зарядкой 90 Вт.", 54900, 3],
+  ["Мышь Slate Pro", "Лёгкая, 54 грамма, сенсор 26 000 DPI, беспроводная зарядка.", 7490, 22],
+  ["Веб-камера Lumen 4K", "Автофокус, HDR, два микрофона с шумоподавлением.", 9990, 0],
+  ["Док-станция Harbor 12-в-1", "Два HDMI 4K60, Ethernet, картридер, Power Delivery 100 Вт.", 15900, 9],
+  ["Коврик Desk Mat XL", "900×400 мм, прошитые края, водоотталкивающее покрытие.", 2490, 41],
+  ["Подставка Arc Stand", "Алюминий, регулировка высоты и угла, под ноутбуки до 16\".", 5990, 16],
+].map(([name, description, amount, stockQuantity]) => ({
+  id: randomUUID(),
+  name,
+  description,
+  price: { currency: "RUB", amount },
+  stockQuantity,
+  imageUrl: null,
+  createdAt: now(),
+  lastUpdatedAt: now(),
+}));
+
+/** email → { id, email, password, name, balance } */
+const customers = new Map();
+/** userId → [{ productId, productName, quantity, price, imageUrl }] */
+const carts = new Map();
+/** orderId → order */
+const orders = new Map();
+
+const RATES = { RUB: 1, USD: 92.5, EUR: 100.2, KZT: 0.19 };
+
+function convert(money, currency) {
+  if (money.currency === currency) return { ...money };
+  const inRub = money.amount * RATES[money.currency];
+  return { currency, amount: Math.round((inRub / RATES[currency]) * 100) / 100 };
+}
+
+/* ──────────────────────── псевдо-JWT ─────────────────────────── */
+
+const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString("base64url");
+
+function makeToken(userId, role, email) {
+  const payload = {
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier": userId,
+    "http://schemas.microsoft.com/ws/2008/06/identity/claims/role": role,
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": email,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  };
+  return `${b64({ alg: "none", typ: "JWT" })}.${b64(payload)}.mock`;
+}
+
+function readToken(req) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) return null;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(header.slice(7).split(".")[1], "base64url").toString(),
+    );
+    return {
+      userId: payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"],
+      role: payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"],
+      email: payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* ──────────────────────── ответы/ошибки ──────────────────────── */
+
+function json(res, status, body) {
+  const text = JSON.stringify(body);
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "*",
+  });
+  res.end(text);
+}
+
+const noContent = (res) => {
+  res.writeHead(204, { "Access-Control-Allow-Origin": "*" });
+  res.end();
+};
+
+/** Тот же формат, что у HandleGenericExceptionAsync */
+const fail = (res, message, status = 500) => json(res, status, { error: "Internal server error occurred.", details: message });
+
+/** Тот же формат, что у HandleValidationExceptionAsync */
+const invalid = (res, errors) =>
+  json(res, 400, {
+    type: "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+    title: "One or more validation errors occurred.",
+    status: 400,
+    errors,
+  });
+
+function readBody(req) {
+  return new Promise((resolve) => {
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    req.on("end", () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch {
+        resolve({});
+      }
+    });
+  });
+}
+
+/* ─────────────────────────── роутинг ─────────────────────────── */
+
+const server = createServer(async (req, res) => {
+  const url = new URL(req.url, `http://localhost:${PORT}`);
+  const path = url.pathname;
+  const method = req.method ?? "GET";
+
+  if (method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type,Authorization",
+    });
+    return res.end();
+  }
+
+  const auth = readToken(req);
+  const body = ["POST", "PUT", "PATCH"].includes(method) ? await readBody(req) : {};
+  const requireAuth = () => {
+    if (!auth) {
+      res.writeHead(401, { "Access-Control-Allow-Origin": "*" });
+      res.end();
+      return false;
+    }
+    return true;
+  };
+
+  /* health / dev */
+  if (path === "/health") return json(res, 200, { status: "ok", message: "ok" });
+  if (path === "/get-test-admin-token")
+    return json(res, 200, { token: makeToken("00000000-0000-0000-0000-000000000000", "Admin", "test-admin") });
+
+  /* auth */
+  if (path === "/api/auth/register" && method === "POST") {
+    const u = body.user ?? {};
+    const errors = {};
+    if (!u.email) errors["User.Email"] = ["'Email' must not be empty."];
+    if (!u.password || u.password.length < 8)
+      errors["User.Password"] = ["'Password' must be at least 8 characters."];
+    if (Object.keys(errors).length) return invalid(res, errors);
+    if (customers.has(u.email)) return fail(res, "Email already exists", 400);
+
+    const customer = {
+      id: randomUUID(),
+      email: u.email,
+      password: u.password,
+      name: u.fullName ?? { firstName: "", lastName: "", middleName: "" },
+      // Настоящий бэк выдаёт 0 — здесь даём стартовый баланс, чтобы флоу заказа было видно
+      balance: { currency: "RUB", amount: 150000 },
+    };
+    customers.set(u.email, customer);
+    return json(res, 200, { token: makeToken(customer.id, "Customer", customer.email) });
+  }
+
+  if (path === "/api/auth/login" && method === "POST") {
+    const u = body.user ?? {};
+    const errors = {};
+    if (!u.email) errors["User.Email"] = ["Email is required"];
+    if (!u.password) errors["User.Password"] = ["Password is required"];
+    if (Object.keys(errors).length) return invalid(res, errors);
+
+    const customer = customers.get(u.email);
+    if (!customer) return fail(res, "User not found");
+    if (customer.password !== u.password) return fail(res, "Password incorrect");
+    return json(res, 200, { token: makeToken(customer.id, "Customer", customer.email) });
+  }
+
+  /* products */
+  if (path === "/api/products" && method === "GET") return json(res, 200, products);
+
+  if (path === "/api/products" && method === "POST") {
+    const product = {
+      id: randomUUID(),
+      name: body.name,
+      description: body.description,
+      price: body.price,
+      stockQuantity: body.stockQuantity,
+      imageUrl: null,
+      createdAt: now(),
+      lastUpdatedAt: now(),
+    };
+    products.unshift(product);
+    return json(res, 201, product.id);
+  }
+
+  const productMatch = path.match(/^\/api\/products\/([\w-]+)$/);
+  if (productMatch) {
+    const index = products.findIndex((p) => p.id === productMatch[1]);
+    if (method === "GET")
+      return index === -1
+        ? fail(res, `Product with id ${productMatch[1]} was not found.`)
+        : json(res, 200, products[index]);
+    if (index === -1) return fail(res, "Product not found");
+    if (method === "PUT") {
+      products[index] = { ...products[index], ...body, lastUpdatedAt: now() };
+      return noContent(res);
+    }
+    if (method === "DELETE") {
+      products.splice(index, 1);
+      return noContent(res);
+    }
+  }
+
+  /* cart */
+  if (path === "/api/cart") {
+    if (!requireAuth()) return;
+    const customer = [...customers.values()].find((c) => c.id === auth.userId);
+    const currency = customer?.balance.currency ?? "RUB";
+    const items = carts.get(auth.userId) ?? [];
+
+    if (method === "GET") {
+      const amount = items.reduce(
+        (sum, i) => sum + convert(i.price, currency).amount * i.quantity,
+        0,
+      );
+      return json(res, 200, {
+        cart: { items },
+        money: { currency, amount: Math.round(amount * 100) / 100 },
+      });
+    }
+    if (method === "DELETE") {
+      carts.delete(auth.userId);
+      return noContent(res);
+    }
+  }
+
+  if (path === "/api/cart/items") {
+    if (!requireAuth()) return;
+    const items = carts.get(auth.userId) ?? [];
+
+    if (method === "POST") {
+      const product = products.find((p) => p.id === body.productId);
+      if (!product) return fail(res, "Product not found");
+      if (body.quantity > product.stockQuantity)
+        return fail(res, "Quantity greater than stock quantity", 400);
+
+      const existing = items.find((i) => i.productId === body.productId);
+      if (existing) existing.quantity += body.quantity;
+      else
+        items.push({
+          productId: product.id,
+          productName: product.name,
+          quantity: body.quantity,
+          price: product.price,
+          imageUrl: product.imageUrl,
+        });
+      carts.set(auth.userId, items);
+      return noContent(res);
+    }
+
+    if (method === "PATCH") {
+      const item = items.find((i) => i.productId === body.productId);
+      if (!item) return fail(res, "Cart item not found");
+      const product = products.find((p) => p.id === body.productId);
+      const next = item.quantity + body.delta;
+      if (next <= 0) items.splice(items.indexOf(item), 1);
+      else if (product && next > product.stockQuantity)
+        return fail(res, "Quantity exceeds stock quantity", 400);
+      else item.quantity = next;
+      carts.set(auth.userId, items);
+      return noContent(res);
+    }
+  }
+
+  const cartItemMatch = path.match(/^\/api\/cart\/items\/([\w-]+)$/);
+  if (cartItemMatch && method === "DELETE") {
+    if (!requireAuth()) return;
+    const items = carts.get(auth.userId) ?? [];
+    const index = items.findIndex((i) => i.productId === cartItemMatch[1]);
+    if (index === -1) return fail(res, "Cart item not found");
+    items.splice(index, 1);
+    carts.set(auth.userId, items);
+    return noContent(res);
+  }
+
+  /* orders */
+  if (path === "/api/orders") {
+    if (!requireAuth()) return;
+
+    if (method === "GET") {
+      const list = [...orders.values()]
+        .filter((o) => o.customerId === auth.userId)
+        .map((o) => ({
+          orderId: o.id,
+          status: o.status,
+          items: o.items,
+          totalPrice: o.totalPrice,
+        }));
+      return json(res, 200, { orders: list });
+    }
+
+    if (method === "POST") {
+      const address = body.address ?? {};
+      const errors = {};
+      for (const field of ["Country", "City", "Street", "PostalCode"]) {
+        const key = field.charAt(0).toLowerCase() + field.slice(1);
+        if (!address[key]) errors[`Address.${field}`] = [`'${field}' must not be empty.`];
+      }
+      if (Object.keys(errors).length) return invalid(res, errors);
+
+      const customer = [...customers.values()].find((c) => c.id === auth.userId);
+      const items = carts.get(auth.userId) ?? [];
+      if (!customer || items.length === 0) return fail(res, "Cart is empty", 400);
+
+      const currency = customer.balance.currency;
+      let amount = 0;
+      const orderItems = [];
+      for (const item of items) {
+        const product = products.find((p) => p.id === item.productId);
+        if (!product || product.stockQuantity < item.quantity)
+          return fail(res, `Current quantity ${item.quantity} is less than stock quantity`, 400);
+        const price = convert(item.price, currency);
+        product.stockQuantity -= item.quantity;
+        amount += price.amount * item.quantity;
+        orderItems.push({
+          productId: item.productId,
+          title: item.productName,
+          quantity: item.quantity,
+          price,
+        });
+      }
+      amount = Math.round(amount * 100) / 100;
+      if (amount > customer.balance.amount)
+        return fail(res, `Amount ${amount} is greater than current amount`, 400);
+
+      customer.balance.amount = Math.round((customer.balance.amount - amount) * 100) / 100;
+
+      const order = {
+        id: randomUUID(),
+        customerId: auth.userId,
+        items: orderItems,
+        totalPrice: { currency, amount },
+        address,
+        status: 0,
+        createdAt: now(),
+        lastUpdatedAt: now(),
+      };
+      orders.set(order.id, order);
+      carts.delete(auth.userId);
+      return json(res, 201, { orderId: order.id });
+    }
+  }
+
+  const orderMatch = path.match(/^\/api\/orders\/([\w-]+)(?:\/(cancel|processing|shipped|delivered))?$/);
+  if (orderMatch) {
+    if (!requireAuth()) return;
+    const order = orders.get(orderMatch[1]);
+    if (!order) return fail(res, "Order not found");
+    const action = orderMatch[2];
+
+    if (method === "GET" && !action) return json(res, 200, order);
+
+    if (method === "PATCH") {
+      if (action === "cancel") {
+        if (order.status === 3 || order.status === 4)
+          return fail(res, "Cannot cancel order", 400);
+        const customer = [...customers.values()].find((c) => c.id === order.customerId);
+        if (customer) {
+          const refund = convert(order.totalPrice, customer.balance.currency);
+          customer.balance.amount = Math.round((customer.balance.amount + refund.amount) * 100) / 100;
+        }
+        for (const item of order.items) {
+          const product = products.find((p) => p.id === item.productId);
+          if (product) product.stockQuantity += item.quantity;
+        }
+        order.status = 4;
+      } else {
+        const required = { processing: 0, shipped: 1, delivered: 2 }[action];
+        const target = { processing: 1, shipped: 2, delivered: 3 }[action];
+        if (order.status !== required) return fail(res, `Cannot set status to ${action}`, 400);
+        order.status = target;
+      }
+      order.lastUpdatedAt = now();
+      return noContent(res);
+    }
+  }
+
+  /* profile */
+  if (path === "/api/profile" && method === "GET") {
+    if (!requireAuth()) return;
+    const customer = [...customers.values()].find((c) => c.id === auth.userId);
+    if (!customer) return fail(res, "Customer not found");
+    return json(res, 200, {
+      email: customer.email,
+      balance: customer.balance,
+      name: customer.name,
+    });
+  }
+
+  if (path === "/api/profile/change-currency" && method === "PATCH") {
+    if (!requireAuth()) return;
+    const customer = [...customers.values()].find((c) => c.id === auth.userId);
+    if (!customer) return fail(res, "User not found");
+    if (!RATES[body.newCurrency])
+      return invalid(res, { NewCurrency: ["Currency not supported"] });
+    customer.balance = convert(customer.balance, body.newCurrency);
+    return noContent(res);
+  }
+
+  json(res, 404, { error: "Not found", details: `${method} ${path}` });
+});
+
+server.listen(PORT, () => {
+  console.log(`[mock] ECommerce API работает на http://localhost:${PORT}`);
+  console.log(`[mock] Зарегистрируйте любой аккаунт — стартовый баланс 150 000 ₽`);
+});
