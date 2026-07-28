@@ -7,22 +7,21 @@ namespace ECommerce.Api.Controllers;
 
 [ApiController]
 [Route("api/orders")]
+[Authorize(Roles = "Customer")]
 public class OrdersController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
-    [Authorize(Roles = "Customer")]
     [EndpointDescription("Create new order from active cart")]
     public async Task<IActionResult> CreateOrder(
         [FromBody] CreateOrder.Command command)
     {
         var order = await _mediator.Send(command);
-        return Created("/api/orders", order);
+        return Created($"/api/orders/{order.OrderId}", order);
     }
 
     [HttpGet]
-    [Authorize(Roles = "Customer")]
     [EndpointDescription("Get orders history for current customer")]
     public async Task<IActionResult> GetOrders()
     {
@@ -31,7 +30,6 @@ public class OrdersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = "Customer")]
     [EndpointDescription("Get detailed order information by id")]
     public async Task<IActionResult> GetOrderById(
         [FromRoute] Guid id)
@@ -41,41 +39,11 @@ public class OrdersController(IMediator mediator) : ControllerBase
     }
 
     [HttpPatch("{id:guid}/cancel")]
-    [Authorize(Roles = "Customer")]
     [EndpointDescription("Cancel order and return items to stock")]
     public async Task<IActionResult> CancelOrder(
         [FromRoute] Guid id)
     {
         await _mediator.Send(new CancelOrder.Command(id));
-        return NoContent();
-    }
-    [HttpPatch("{id:guid}/processing")]
-    [Authorize(Roles = "Admin")]
-    [EndpointDescription("Take order in process")]
-    public async Task<IActionResult> TakeOrderInProcess(
-        [FromRoute] Guid id)
-    {
-        await _mediator.Send(new TakeOrderInProcess.Command(id));
-        return NoContent();
-    }
-    
-    [HttpPatch("{id:guid}/shipped")]
-    [Authorize(Roles = "Admin")]
-    [EndpointDescription("Take order in process")]
-    public async Task<IActionResult> SetStatusToShipped(
-        [FromRoute] Guid id)
-    {
-        await _mediator.Send(new SetStatusToShipped.Command(id));
-        return NoContent();
-    }
-    
-    [HttpPatch("{id:guid}/delivered")]
-    [Authorize(Roles = "Admin")]
-    [EndpointDescription("Set status to delivered")]
-    public async Task<IActionResult> SetStatusToDelivered(
-        [FromRoute] Guid id)
-    {
-        await _mediator.Send(new SetStatusToDelivered.Command(id));
         return NoContent();
     }
 }

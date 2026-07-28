@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils";
 import { placeholderGradient } from "@/lib/format";
 
 /**
- * У Product есть поле ImageUrl, но через API его выставить нельзя
- * (AddProduct.Command / UpdateProduct.CommandDto его не принимают — REVIEW.md п.5),
- * поэтому почти всегда рисуем плейсхолдер.
+ * Показывает картинку товара (ImageUrl, выставляется через
+ * PUT /api/products/{id}/image, см. Admin → Товары) либо градиентный
+ * плейсхолдер, если картинки нет или она не загрузилась.
  */
 export function ProductImage({
   src,

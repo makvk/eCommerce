@@ -89,7 +89,7 @@ export interface OrdersResponse {
   orders: OrderSummary[];
 }
 
-/** GetOrderById.ResponseDto */
+/** GetOrderById.ResponseDto — совпадает по форме с Admin.GetOrderById.ResponseDto */
 export interface OrderDetail {
   id: string;
   customerId: string;
@@ -99,6 +99,25 @@ export interface OrderDetail {
   status: RawStatus;
   createdAt: string;
   lastUpdatedAt: string;
+}
+
+/** Admin.GetOrders.OrderDto — в отличие от клиентского OrderSummary содержит customerId и даты */
+export interface AdminOrderSummary {
+  orderId: string;
+  customerId: string;
+  status: RawStatus;
+  items: OrderItem[];
+  totalPrice: Money;
+  createdAt: string;
+  lastUpdatedAt: string;
+}
+
+/** Admin.GetOrders.ResponseDto — список с пагинацией */
+export interface AdminOrdersResponse {
+  orders: AdminOrderSummary[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
 }
 
 /** GetProfile.ResponseDto */

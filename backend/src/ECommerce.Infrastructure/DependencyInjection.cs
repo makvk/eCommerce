@@ -2,6 +2,7 @@ using System.Text;
 using ECommerce.Application.Common;
 using ECommerce.Domain.Modles;
 using ECommerce.Infrastructure.BackgroundServices;
+using ECommerce.Infrastructure.Options;
 using ECommerce.Infrastructure.Persistence;
 using ECommerce.Infrastructure.Services;
 using FluentValidation;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Minio;
 
 
 namespace ECommerce.Infrastructure;
@@ -50,7 +52,20 @@ public static class DependencyInjection
             options.Configuration = redisConnectionString;
             options.InstanceName = configuration["RedisSettings:InstanceName"];
         });
-        
+
+        // MinIO — хранилище файлов (картинки товаров)
+        services.Configure<MinioOptions>(configuration.GetSection("MinioSettings"));
+        services.AddSingleton<IMinioClient>(sp =>
+        {
+            var minioOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MinioOptions>>().Value;
+            return new MinioClient()
+                .WithEndpoint(minioOptions.Endpoint)
+                .WithCredentials(minioOptions.AccessKey, minioOptions.SecretKey)
+                .WithSSL(minioOptions.UseSsl)
+                .Build();
+        });
+        services.AddScoped<IFileStorageService, Services.MinioFileStorageService>();
+
         // Регистрация MediatR
         services.AddMediatR(cfg =>
         {

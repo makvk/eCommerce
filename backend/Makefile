@@ -15,7 +15,7 @@ infadd:
 	dotnet add ./src/ECommerce.Infrastructure/ECommerce.Infrastructure.csproj package $(pkg)
 
 db-up:
-	docker compose up -d ecommerce-db ecommerce-cache
+	docker compose up -d ecommerce-db ecommerce-cache ecommerce-minio
 
 db-logs:
 	docker compose logs -f ecommerce-db

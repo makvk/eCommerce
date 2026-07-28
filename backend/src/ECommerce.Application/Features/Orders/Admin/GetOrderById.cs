@@ -5,11 +5,12 @@ using ECommerce.Domain.Records;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace ECommerce.Application.Features.Orders;
+namespace ECommerce.Application.Features.Orders.Admin;
 
 public class GetOrderById
 {
     public record OrderItemDto(Guid ProductId, string Title, int Quantity, Money Price);
+
     public record ResponseDto(
         Guid Id,
         Guid CustomerId,
@@ -21,30 +22,23 @@ public class GetOrderById
         DateTimeOffset LastUpdatedAt
     );
 
-    public record Command(Guid OrderId) : IRequest<ResponseDto>;
+    public record Query(Guid OrderId) : IRequest<ResponseDto>;
 
-    public class Handler(
-        IEDbContext eDbContext,
-        ICurrentUserService currentUserService) : IRequestHandler<Command, ResponseDto>
+    public class Handler(IEDbContext eDbContext) : IRequestHandler<Query, ResponseDto>
     {
         private readonly IEDbContext _eDbContext = eDbContext;
-        private readonly ICurrentUserService _currentUserService = currentUserService;
 
         public async Task<ResponseDto> Handle(
-            Command request,
+            Query request,
             CancellationToken cancellationToken)
         {
-            var userIdString = _currentUserService.UserId;
-            if (userIdString == null || !Guid.TryParse(userIdString, out var userId))
-                throw new UnauthorizedException("Invalid user id");
-
             var order = await _eDbContext.Orders
                 .AsNoTracking()
                 .Include(o => o.Items)
-                .FirstOrDefaultAsync(o => o.Id == request.OrderId && o.CustomerId == userId,  cancellationToken)
+                .FirstOrDefaultAsync(o => o.Id == request.OrderId, cancellationToken)
                 ?? throw new NotFoundException("Order not found");
-            
-            var response = new ResponseDto(
+
+            return new ResponseDto(
                 order.Id,
                 order.CustomerId,
                 order.Items.Select(
@@ -58,7 +52,6 @@ public class GetOrderById
                 order.Status,
                 order.CreatedAt,
                 order.LastUpdatedAt);
-            return response;
         }
     }
 }

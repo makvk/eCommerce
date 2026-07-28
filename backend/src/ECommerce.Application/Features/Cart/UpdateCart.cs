@@ -36,7 +36,7 @@ public class UpdateCart
         public async Task Handle(Command request, CancellationToken cancellationToken)
         {
             var userId = _currentUserService.UserId
-                         ?? throw new UnauthorizedAccessException("User not found");
+                         ?? throw new UnauthorizedException("User not found");
 
             var product = await _eDbContext.Products
                               .AsNoTracking()

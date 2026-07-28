@@ -1,5 +1,6 @@
 import { request } from "./client";
 import type {
+  AdminOrdersResponse,
   AuthResult,
   CartResponse,
   CreateOrderResponse,
@@ -7,6 +8,7 @@ import type {
   Money,
   OrderDetail,
   OrdersResponse,
+  OrderStatus,
   Product,
   Profile,
 } from "./types";
@@ -60,6 +62,21 @@ export const productsApi = {
   /** DELETE /api/products/{id} (Admin) → 204 */
   remove: (id: string, token: string) =>
     request<void>(`/api/products/${id}`, { method: "DELETE", token }),
+
+  /** PUT /api/products/{id}/image (Admin, multipart/form-data) → { imageUrl } */
+  uploadImage: (id: string, file: File, token: string) => {
+    const body = new FormData();
+    body.append("file", file);
+    return request<{ imageUrl: string }>(`/api/products/${id}/image`, {
+      method: "PUT",
+      body,
+      token,
+    });
+  },
+
+  /** DELETE /api/products/{id}/image (Admin) → 204 */
+  removeImage: (id: string, token: string) =>
+    request<void>(`/api/products/${id}/image`, { method: "DELETE", token }),
 };
 
 /* ──────────────────────────── cart ────────────────────────── */
@@ -101,15 +118,49 @@ export const ordersApi = {
 
   /** PATCH /api/orders/{id}/cancel — возвращает товары на склад и деньги на баланс */
   cancel: (id: string) => request<void>(`/api/orders/${id}/cancel`, { method: "PATCH" }),
+};
+
+/* ───────────────────────── orders (admin) ─────────────────────── */
+
+export const adminOrdersApi = {
+  /**
+   * GET /api/admin/orders (Admin) — список ВСЕХ заказов (не только своих), с фильтром
+   * по покупателю/статусу и пагинацией. См. ECommerce.Application.Features.Orders.Admin.GetOrders.
+   */
+  list: (
+    params: {
+      customerId?: string;
+      status?: OrderStatus;
+      page?: number;
+      pageSize?: number;
+    } = {},
+    token: string,
+    signal?: AbortSignal,
+  ) => {
+    const query = new URLSearchParams();
+    if (params.customerId) query.set("customerId", params.customerId);
+    if (params.status !== undefined) query.set("status", String(params.status));
+    if (params.page) query.set("page", String(params.page));
+    if (params.pageSize) query.set("pageSize", String(params.pageSize));
+    const qs = query.toString();
+    return request<AdminOrdersResponse>(`/api/admin/orders${qs ? `?${qs}` : ""}`, {
+      token,
+      signal,
+    });
+  },
+
+  /** GET /api/admin/orders/{id} (Admin) — любой заказ, без привязки к текущему пользователю */
+  byId: (id: string, token: string, signal?: AbortSignal) =>
+    request<OrderDetail>(`/api/admin/orders/${id}`, { token, signal }),
 
   /* Админские переходы статусов. Порядок жёсткий:
      Created → Processing → Shipped → Delivered */
   takeInProcess: (id: string, token: string) =>
-    request<void>(`/api/orders/${id}/processing`, { method: "PATCH", token }),
+    request<void>(`/api/admin/orders/${id}/processing`, { method: "PATCH", token }),
   markShipped: (id: string, token: string) =>
-    request<void>(`/api/orders/${id}/shipped`, { method: "PATCH", token }),
+    request<void>(`/api/admin/orders/${id}/shipped`, { method: "PATCH", token }),
   markDelivered: (id: string, token: string) =>
-    request<void>(`/api/orders/${id}/delivered`, { method: "PATCH", token }),
+    request<void>(`/api/admin/orders/${id}/delivered`, { method: "PATCH", token }),
 };
 
 /* ─────────────────────────── profile ──────────────────────── */

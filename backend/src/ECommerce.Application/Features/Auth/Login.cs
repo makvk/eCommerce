@@ -1,4 +1,5 @@
 using ECommerce.Application.Common;
+using ECommerce.Application.Common.Exceptions;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -48,14 +49,9 @@ public class Login
                 cancellationToken
             );
 
-            if (user == null)
+            if (user == null || !_passwordHasher.VerifyHashedPassword(request.User.Password!, user.PasswordHash))
             {
-                throw new Exception("User not found");
-            }
-
-            if (!_passwordHasher.VerifyHashedPassword(request.User.Password!, user.PasswordHash))
-            {
-                throw new Exception("Password incorrect");
+                throw new UnauthorizedException("Invalid email or password");
             }
 
             var token = _jwtTokenGenerator.GenerateToken(

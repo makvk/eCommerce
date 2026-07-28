@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ECommerce.Application.Common;
+using ECommerce.Application.Common.Exceptions;
 using ECommerce.Domain.Entities;
 using ECommerce.Domain.Modles;
 using ECommerce.Domain.Records;
@@ -28,9 +29,9 @@ public class GetCart
         public async Task<ResponseDto> Handle(Query message, CancellationToken cancellationToken)
         {
             var userId = _currentUserService.UserId 
-                         ?? throw new UnauthorizedAccessException("User not found");
+                         ?? throw new UnauthorizedException("User not found");
             var userBalance = await _currentUserService.GetBalanceAsync(cancellationToken)
-                ?? throw new UnauthorizedAccessException("User not found");
+                ?? throw new UnauthorizedException("User not found");
             var userCurrency = userBalance.Currency;
             var productsString = await _distributedCache.GetStringAsync(userId, cancellationToken);
             if (string.IsNullOrEmpty(productsString))

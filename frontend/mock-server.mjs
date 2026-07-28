@@ -45,6 +45,9 @@ const orders = new Map();
 
 const RATES = { RUB: 1, USD: 92.5, EUR: 100.2, KZT: 0.19 };
 
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+
 function convert(money, currency) {
   if (money.currency === currency) return { ...money };
   const inRub = money.amount * RATES[money.currency];
@@ -98,8 +101,23 @@ const noContent = (res) => {
   res.end();
 };
 
-/** Тот же формат, что у HandleGenericExceptionAsync */
-const fail = (res, message, status = 500) => json(res, status, { error: "Internal server error occurred.", details: message });
+const STATUS_TITLE = {
+  400: "Bad Request",
+  401: "Unauthorized",
+  403: "Forbidden",
+  404: "Not Found",
+  409: "Conflict",
+  503: "Service Unavailable",
+  500: "Internal Server Error",
+};
+
+/** Тот же формат ProblemDetails, что у ExceptionHandlingMiddleware.HandleExceptionAsync. Дефолт — 404, т.к. большинство доменных ошибок здесь это NotFoundException. */
+const fail = (res, message, status = 404) =>
+  json(res, status, {
+    title: STATUS_TITLE[status] ?? "Error",
+    status,
+    detail: message,
+  });
 
 /** Тот же формат, что у HandleValidationExceptionAsync */
 const invalid = (res, errors) =>
@@ -124,6 +142,58 @@ function readBody(req) {
   });
 }
 
+function readRawBody(req) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+}
+
+/** Мини-парсер multipart/form-data — только для загрузки картинки товара, без внешних зависимостей. */
+function parseMultipart(buffer, contentType) {
+  const boundaryMatch = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType ?? "");
+  const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2];
+  const fields = {};
+  const files = {};
+  if (!boundary) return { fields, files };
+
+  const boundaryBuf = Buffer.from(`--${boundary}`);
+  let start = buffer.indexOf(boundaryBuf) + boundaryBuf.length;
+  while (start > boundaryBuf.length - 1) {
+    const nextBoundary = buffer.indexOf(boundaryBuf, start);
+    if (nextBoundary === -1) break;
+    let part = buffer.subarray(start, nextBoundary);
+    if (part.subarray(0, 2).toString() === "\r\n") part = part.subarray(2);
+    if (part.subarray(-2).toString() === "\r\n") part = part.subarray(0, -2);
+
+    const headerEnd = part.indexOf("\r\n\r\n");
+    if (headerEnd !== -1) {
+      const headerStr = part.subarray(0, headerEnd).toString("utf8");
+      const content = part.subarray(headerEnd + 4);
+      const nameMatch = /name="([^"]+)"/i.exec(headerStr);
+      const filenameMatch = /filename="([^"]*)"/i.exec(headerStr);
+      const contentTypeMatch = /Content-Type:\s*([^\r\n]+)/i.exec(headerStr);
+
+      if (nameMatch) {
+        if (filenameMatch) {
+          files[nameMatch[1]] = {
+            filename: filenameMatch[1],
+            contentType: contentTypeMatch?.[1]?.trim() ?? "application/octet-stream",
+            data: content,
+          };
+        } else {
+          fields[nameMatch[1]] = content.toString("utf8");
+        }
+      }
+    }
+
+    start = nextBoundary + boundaryBuf.length;
+    if (buffer.subarray(start, start + 2).toString() === "--") break;
+  }
+  return { fields, files };
+}
+
 /* ─────────────────────────── роутинг ─────────────────────────── */
 
 const server = createServer(async (req, res) => {
@@ -141,10 +211,27 @@ const server = createServer(async (req, res) => {
   }
 
   const auth = readToken(req);
-  const body = ["POST", "PUT", "PATCH"].includes(method) ? await readBody(req) : {};
+  const isMultipart = (req.headers["content-type"] ?? "").startsWith("multipart/form-data");
+  let body = {};
+  let multipart = null;
+  if (["POST", "PUT", "PATCH"].includes(method)) {
+    if (isMultipart) multipart = parseMultipart(await readRawBody(req), req.headers["content-type"]);
+    else body = await readBody(req);
+  }
   const requireAuth = () => {
     if (!auth) {
       res.writeHead(401, { "Access-Control-Allow-Origin": "*" });
+      res.end();
+      return false;
+    }
+    return true;
+  };
+
+  /** Как настоящий Authorization middleware: 401 без токена, 403 при недостатке роли — оба пустые. */
+  const requireAdmin = () => {
+    if (!requireAuth()) return false;
+    if (auth.role !== "Admin") {
+      res.writeHead(403, { "Access-Control-Allow-Origin": "*" });
       res.end();
       return false;
     }
@@ -186,8 +273,9 @@ const server = createServer(async (req, res) => {
     if (Object.keys(errors).length) return invalid(res, errors);
 
     const customer = customers.get(u.email);
-    if (!customer) return fail(res, "User not found");
-    if (customer.password !== u.password) return fail(res, "Password incorrect");
+    // Одно сообщение на оба случая — не палим, зарегистрирован ли email (см. Login.Handler)
+    if (!customer || customer.password !== u.password)
+      return fail(res, "Invalid email or password", 401);
     return json(res, 200, { token: makeToken(customer.id, "Customer", customer.email) });
   }
 
@@ -195,6 +283,7 @@ const server = createServer(async (req, res) => {
   if (path === "/api/products" && method === "GET") return json(res, 200, products);
 
   if (path === "/api/products" && method === "POST") {
+    if (!requireAdmin()) return;
     const product = {
       id: randomUUID(),
       name: body.name,
@@ -209,6 +298,32 @@ const server = createServer(async (req, res) => {
     return json(res, 201, product.id);
   }
 
+  const productImageMatch = path.match(/^\/api\/products\/([\w-]+)\/image$/);
+  if (productImageMatch) {
+    if (!requireAdmin()) return;
+    const index = products.findIndex((p) => p.id === productImageMatch[1]);
+    if (index === -1) return fail(res, "Product not found");
+
+    if (method === "PUT") {
+      const file = multipart?.files?.file;
+      if (!file || !file.data.length) return fail(res, "File is empty", 400);
+      if (!ALLOWED_IMAGE_TYPES.includes(file.contentType))
+        return invalid(res, { ContentType: ["Unsupported image type. Allowed: jpeg, png, webp"] });
+      if (file.data.length > MAX_IMAGE_SIZE_BYTES)
+        return invalid(res, { ContentLength: [`Image must be between 1 byte and ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024} MB`] });
+
+      // Настоящий бэк грузит файл в MinIO и отдаёт публичный http(s)-URL;
+      // мок хранит всё в памяти, поэтому кладём картинку прямо в data:-URL.
+      const imageUrl = `data:${file.contentType};base64,${file.data.toString("base64")}`;
+      products[index] = { ...products[index], imageUrl, lastUpdatedAt: now() };
+      return json(res, 200, { imageUrl });
+    }
+    if (method === "DELETE") {
+      products[index] = { ...products[index], imageUrl: null, lastUpdatedAt: now() };
+      return noContent(res);
+    }
+  }
+
   const productMatch = path.match(/^\/api\/products\/([\w-]+)$/);
   if (productMatch) {
     const index = products.findIndex((p) => p.id === productMatch[1]);
@@ -216,6 +331,7 @@ const server = createServer(async (req, res) => {
       return index === -1
         ? fail(res, `Product with id ${productMatch[1]} was not found.`)
         : json(res, 200, products[index]);
+    if (!requireAdmin()) return;
     if (index === -1) return fail(res, "Product not found");
     if (method === "PUT") {
       products[index] = { ...products[index], ...body, lastUpdatedAt: now() };
@@ -367,35 +483,80 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  const orderMatch = path.match(/^\/api\/orders\/([\w-]+)(?:\/(cancel|processing|shipped|delivered))?$/);
+  // Заказы конкретного покупателя — как GetOrderById/CancelOrder, скоуп по CustomerId.
+  const orderMatch = path.match(/^\/api\/orders\/([\w-]+)(?:\/(cancel))?$/);
   if (orderMatch) {
     if (!requireAuth()) return;
     const order = orders.get(orderMatch[1]);
-    if (!order) return fail(res, "Order not found");
+    // Чужой заказ не отличаем от несуществующего — ровно как настоящий бэкенд
+    if (!order || order.customerId !== auth.userId) return fail(res, "Order not found", 404);
     const action = orderMatch[2];
 
     if (method === "GET" && !action) return json(res, 200, order);
 
-    if (method === "PATCH") {
-      if (action === "cancel") {
-        if (order.status === 3 || order.status === 4)
-          return fail(res, "Cannot cancel order", 400);
-        const customer = [...customers.values()].find((c) => c.id === order.customerId);
-        if (customer) {
-          const refund = convert(order.totalPrice, customer.balance.currency);
-          customer.balance.amount = Math.round((customer.balance.amount + refund.amount) * 100) / 100;
-        }
-        for (const item of order.items) {
-          const product = products.find((p) => p.id === item.productId);
-          if (product) product.stockQuantity += item.quantity;
-        }
-        order.status = 4;
-      } else {
-        const required = { processing: 0, shipped: 1, delivered: 2 }[action];
-        const target = { processing: 1, shipped: 2, delivered: 3 }[action];
-        if (order.status !== required) return fail(res, `Cannot set status to ${action}`, 400);
-        order.status = target;
+    if (method === "PATCH" && action === "cancel") {
+      if (order.status === 3 || order.status === 4)
+        return fail(res, "Cannot cancel order", 400);
+      const customer = [...customers.values()].find((c) => c.id === order.customerId);
+      if (customer) {
+        const refund = convert(order.totalPrice, customer.balance.currency);
+        customer.balance.amount = Math.round((customer.balance.amount + refund.amount) * 100) / 100;
       }
+      for (const item of order.items) {
+        const product = products.find((p) => p.id === item.productId);
+        if (product) product.stockQuantity += item.quantity;
+      }
+      order.status = 4;
+      order.lastUpdatedAt = now();
+      return noContent(res);
+    }
+  }
+
+  /* orders (admin) — без привязки к CustomerId, как AdminOrdersController */
+  if (path === "/api/admin/orders" && method === "GET") {
+    if (!requireAdmin()) return;
+
+    const customerIdFilter = url.searchParams.get("customerId");
+    const statusFilter = url.searchParams.get("status");
+    const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") ?? 20) || 20));
+
+    let list = [...orders.values()];
+    if (customerIdFilter) list = list.filter((o) => o.customerId === customerIdFilter);
+    if (statusFilter !== null && statusFilter !== "")
+      list = list.filter((o) => String(o.status) === statusFilter);
+
+    list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    const totalCount = list.length;
+    const paged = list.slice((page - 1) * pageSize, page * pageSize).map((o) => ({
+      orderId: o.id,
+      customerId: o.customerId,
+      status: o.status,
+      items: o.items,
+      totalPrice: o.totalPrice,
+      createdAt: o.createdAt,
+      lastUpdatedAt: o.lastUpdatedAt,
+    }));
+
+    return json(res, 200, { orders: paged, totalCount, page, pageSize });
+  }
+
+  const adminOrderMatch = path.match(
+    /^\/api\/admin\/orders\/([\w-]+)(?:\/(processing|shipped|delivered))?$/,
+  );
+  if (adminOrderMatch) {
+    if (!requireAdmin()) return;
+    const order = orders.get(adminOrderMatch[1]);
+    if (!order) return fail(res, "Order not found", 404);
+    const action = adminOrderMatch[2];
+
+    if (method === "GET" && !action) return json(res, 200, order);
+
+    if (method === "PATCH" && action) {
+      const required = { processing: 0, shipped: 1, delivered: 2 }[action];
+      const target = { processing: 1, shipped: 2, delivered: 3 }[action];
+      if (order.status !== required) return fail(res, `Cannot set status to ${action}`, 400);
+      order.status = target;
       order.lastUpdatedAt = now();
       return noContent(res);
     }
@@ -423,7 +584,7 @@ const server = createServer(async (req, res) => {
     return noContent(res);
   }
 
-  json(res, 404, { error: "Not found", details: `${method} ${path}` });
+  fail(res, `Route not found: ${method} ${path}`, 404);
 });
 
 server.listen(PORT, () => {

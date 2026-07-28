@@ -1,4 +1,5 @@
 using ECommerce.Application.Common;
+using ECommerce.Application.Common.Exceptions;
 using ECommerce.Domain.Entities;
 using ECommerce.Domain.Enums;
 using ECommerce.Domain.Records;
@@ -26,7 +27,7 @@ public class GetOrders
         {
             var userIdString = _currentUserService.UserId;
             if (userIdString == null || !Guid.TryParse(userIdString, out var userId))
-                throw new UnauthorizedAccessException();
+                throw new UnauthorizedException("Invalid user id");
             var orders = await _eDbContext.Orders
                 .AsNoTracking()
                 .Where(o => o.CustomerId == userId)

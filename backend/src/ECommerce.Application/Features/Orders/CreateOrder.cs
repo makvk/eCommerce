@@ -49,10 +49,10 @@ public class CreateOrder
             var userIdString = _currentUserService.UserId;
             
             if (userIdString == null || !Guid.TryParse(userIdString, out var userId))
-                throw new UnauthorizedAccessException();
+                throw new UnauthorizedException("Invalid user id");
             
             var user = _eDbContext.Customers.FirstOrDefault(c => c.Id == userId)
-                ?? throw new UnauthorizedAccessException();
+                ?? throw new NotFoundException("User not found");
             
             var userBalance = user.Balance;
             

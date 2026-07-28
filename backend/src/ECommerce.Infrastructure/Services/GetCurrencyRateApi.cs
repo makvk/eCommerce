@@ -14,7 +14,7 @@ public class GetCurrencyRateApi(
         CancellationToken cancellationToken)
     {
         var currencies = config.GetSection("CurrencySettings:SupportedCurrencies").Get<List<string>>()
-            ?? throw new Exception("Currencies not configured");
+            ?? throw new InvalidOperationException("Currencies not configured");
         var currencySet = new HashSet<string>(currencies.Select(c => c.ToUpper()));
         
         var rates = new Dictionary<string, decimal>();

@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -38,11 +45,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
+import { ProductImage } from "@/components/ProductImage";
 import { useAuth } from "@/context/AuthContext";
-import { useOrders, useProducts, qk, notifyError } from "@/hooks/queries";
-import { ordersApi, productsApi } from "@/api/endpoints";
-import { formatMoney, normalizeStatus } from "@/lib/format";
+import { useAdminOrderTransition, useAdminOrders, useProducts, qk, notifyError } from "@/hooks/queries";
+import { productsApi } from "@/api/endpoints";
+import { formatMoney, STATUS_LABEL, normalizeStatus } from "@/lib/format";
 import { OrderStatus, type Product } from "@/api/types";
+
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+const PAGE_SIZE = 10;
+
+const STATUS_FILTER_OPTIONS = [
+  OrderStatus.Created,
+  OrderStatus.Processing,
+  OrderStatus.Shipped,
+  OrderStatus.Delivered,
+  OrderStatus.Cancelled,
+] as const;
 
 /** Цена товара создаётся только в базовой валюте — AddProduct.CommandValidator это требует. */
 const BASE_CURRENCY = "RUB";
@@ -129,6 +150,41 @@ function ProductsTab() {
     onError: (e) => notifyError(e, "Не удалось удалить товар"),
   });
 
+  const uploadImage = useMutation({
+    mutationFn: (file: File) => productsApi.uploadImage(editing!.id, file, adminToken!),
+    onSuccess: (result) => {
+      invalidate();
+      setEditing((prev) => (prev ? { ...prev, imageUrl: result.imageUrl } : prev));
+      toast.success("Картинка загружена");
+    },
+    onError: (e) => notifyError(e, "Не удалось загрузить картинку"),
+  });
+
+  const removeImage = useMutation({
+    mutationFn: () => productsApi.removeImage(editing!.id, adminToken!),
+    onSuccess: () => {
+      invalidate();
+      setEditing((prev) => (prev ? { ...prev, imageUrl: null } : prev));
+      toast.success("Картинка удалена");
+    },
+    onError: (e) => notifyError(e, "Не удалось удалить картинку"),
+  });
+
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast.error("Допустимые форматы: JPEG, PNG, WebP");
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      toast.error("Максимальный размер файла — 5 МБ");
+      return;
+    }
+    uploadImage.mutate(file);
+  }
+
   function openCreate() {
     setEditing(null);
     setForm(EMPTY_FORM);
@@ -183,6 +239,7 @@ function ProductsTab() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-14" />
                   <TableHead>Название</TableHead>
                   <TableHead className="hidden md:table-cell">Описание</TableHead>
                   <TableHead className="text-right">Цена</TableHead>
@@ -193,6 +250,14 @@ function ProductsTab() {
               <TableBody>
                 {products.map((product) => (
                   <TableRow key={product.id}>
+                    <TableCell>
+                      <ProductImage
+                        src={product.imageUrl}
+                        alt={product.name}
+                        seed={product.id}
+                        className="size-10 rounded-md"
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{product.name}</TableCell>
                     <TableCell className="hidden max-w-xs truncate text-muted-foreground md:table-cell">
                       {product.description}
@@ -267,6 +332,47 @@ function ProductsTab() {
             </DialogHeader>
 
             <div className="space-y-4 py-4">
+              {editing ? (
+                <div className="space-y-2">
+                  <Label>Картинка</Label>
+                  <div className="flex items-center gap-3">
+                    <ProductImage
+                      src={editing.imageUrl}
+                      alt={editing.name}
+                      seed={editing.id}
+                      className="size-16 rounded-md shrink-0"
+                    />
+                    <div className="flex flex-col gap-2">
+                      <Input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        disabled={uploadImage.isPending}
+                        onChange={handleImageChange}
+                        className="max-w-64"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        JPEG, PNG или WebP, до 5 МБ.
+                      </p>
+                      {editing.imageUrl && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-fit"
+                          disabled={removeImage.isPending}
+                          onClick={() => removeImage.mutate()}
+                        >
+                          Удалить картинку
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Картинку можно будет загрузить после сохранения товара.
+                </p>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="p-name">Название</Label>
                 <Input
@@ -340,99 +446,141 @@ function ProductsTab() {
 /* ───────────────────────────── заказы ───────────────────────────── */
 
 function OrdersTab() {
-  const { adminToken, isAuthenticated } = useAuth();
-  const queryClient = useQueryClient();
-  const { data, isLoading } = useOrders();
+  const { isAdmin } = useAuth();
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
 
-  const transition = useMutation({
-    mutationFn: ({ id, to }: { id: string; to: OrderStatus }) => {
-      if (to === OrderStatus.Processing) return ordersApi.takeInProcess(id, adminToken!);
-      if (to === OrderStatus.Shipped) return ordersApi.markShipped(id, adminToken!);
-      return ordersApi.markDelivered(id, adminToken!);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.orders });
-      queryClient.invalidateQueries({ queryKey: ["order"] });
-      toast.success("Статус обновлён");
-    },
-    onError: (e) => notifyError(e, "Не удалось сменить статус"),
+  const { data, isLoading } = useAdminOrders({
+    page,
+    pageSize: PAGE_SIZE,
+    status: statusFilter === "all" ? undefined : statusFilter,
   });
 
+  const transition = useAdminOrderTransition();
+
   const orders = data?.orders ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const hasNextPage = page * PAGE_SIZE < totalCount;
+
+  function handleStatusFilterChange(value: string) {
+    setStatusFilter(value === "all" ? "all" : (Number(value) as OrderStatus));
+    setPage(1);
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-400">
-        <TriangleAlert className="size-4 shrink-0 translate-y-0.5" />
-        <p>
-          В API нет эндпоинта «все заказы для админа» — <code>GET /api/orders</code>{" "}
-          фильтрует по текущему пользователю. Поэтому здесь показаны только ваши
-          собственные заказы. См. REVIEW.md п.4.
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {totalCount} заказ{totalCount === 1 ? "" : "ов"} всего — <code>GET /api/admin/orders</code>{" "}
+          показывает заказы всех покупателей.
         </p>
+        <Select value={String(statusFilter)} onValueChange={handleStatusFilterChange}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Статус" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Все статусы</SelectItem>
+            {STATUS_FILTER_OPTIONS.map((status) => (
+              <SelectItem key={status} value={String(status)}>
+                {STATUS_LABEL[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {!isAuthenticated ? (
+      {!isAdmin ? (
         <EmptyState
           icon={TriangleAlert}
-          title="Нужен вход как покупатель"
-          description="Список заказов тянется под Customer-токеном."
+          title="Нужен вход как админ"
+          description="Список тянется под dev-токеном администратора."
         />
       ) : isLoading ? (
         <Skeleton className="h-40 w-full rounded-xl" />
       ) : orders.length === 0 ? (
         <EmptyState icon={TriangleAlert} title="Заказов нет" />
       ) : (
-        <Card className="py-0">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Заказ</TableHead>
-                  <TableHead>Статус</TableHead>
-                  <TableHead className="text-right">Сумма</TableHead>
-                  <TableHead className="text-right">Действие</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => {
-                  const status = normalizeStatus(order.status);
-                  const next = nextTransition(status);
-                  return (
-                    <TableRow key={order.orderId}>
-                      <TableCell className="font-mono text-xs">
-                        #{order.orderId.slice(0, 8)}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={order.status} />
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatMoney(order.totalPrice)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {next ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={transition.isPending}
-                            onClick={() =>
-                              transition.mutate({ id: order.orderId, to: next.to })
-                            }
-                          >
-                            {next.label}
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            финальный статус
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <>
+          <Card className="py-0">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Заказ</TableHead>
+                    <TableHead>Покупатель</TableHead>
+                    <TableHead>Статус</TableHead>
+                    <TableHead className="text-right">Сумма</TableHead>
+                    <TableHead className="text-right">Действие</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.map((order) => {
+                    const status = normalizeStatus(order.status);
+                    const next = nextTransition(status);
+                    return (
+                      <TableRow key={order.orderId}>
+                        <TableCell className="font-mono text-xs">
+                          #{order.orderId.slice(0, 8)}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {order.customerId.slice(0, 8)}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={order.status} />
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatMoney(order.totalPrice)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {next ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={transition.isPending}
+                              onClick={() =>
+                                transition.mutate({ id: order.orderId, to: next.to })
+                              }
+                            >
+                              {next.label}
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              финальный статус
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Страница {page}</p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="size-4" />
+                Назад
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!hasNextPage}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Вперёд
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -441,7 +589,7 @@ function OrdersTab() {
 /** Переходы жёстко зашиты в хендлерах: Created → Processing → Shipped → Delivered. */
 function nextTransition(
   status: OrderStatus,
-): { to: OrderStatus; label: string } | null {
+): { to: OrderStatus.Processing | OrderStatus.Shipped | OrderStatus.Delivered; label: string } | null {
   switch (status) {
     case OrderStatus.Created:
       return { to: OrderStatus.Processing, label: "Взять в работу" };

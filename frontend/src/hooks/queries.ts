@@ -1,8 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { cartApi, ordersApi, productsApi, profileApi } from "@/api/endpoints";
+import { adminOrdersApi, cartApi, ordersApi, productsApi, profileApi } from "@/api/endpoints";
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/context/AuthContext";
+import { OrderStatus } from "@/api/types";
+
+type AdminOrdersParams = {
+  customerId?: string;
+  status?: OrderStatus;
+  page?: number;
+  pageSize?: number;
+};
 
 export const qk = {
   products: ["products"] as const,
@@ -10,6 +18,7 @@ export const qk = {
   cart: ["cart"] as const,
   orders: ["orders"] as const,
   order: (id: string) => ["order", id] as const,
+  adminOrders: (params: AdminOrdersParams) => ["admin-orders", params] as const,
   profile: ["profile"] as const,
 };
 
@@ -142,6 +151,42 @@ export function useCancelOrder() {
       toast.success("Заказ отменён, деньги вернулись на баланс");
     },
     onError: (e) => notifyError(e, "Не удалось отменить заказ"),
+  });
+}
+
+/* ───────────────────────── orders (admin) ─────────────────────── */
+
+/** Список всех заказов (любого покупателя) — GET /api/admin/orders под админским токеном. */
+export function useAdminOrders(params: AdminOrdersParams = {}) {
+  const { adminToken } = useAuth();
+  return useQuery({
+    queryKey: qk.adminOrders(params),
+    queryFn: ({ signal }) => adminOrdersApi.list(params, adminToken!, signal),
+    enabled: Boolean(adminToken),
+  });
+}
+
+export function useAdminOrderTransition() {
+  const { adminToken } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      to,
+    }: {
+      id: string;
+      to: OrderStatus.Processing | OrderStatus.Shipped | OrderStatus.Delivered;
+    }) => {
+      if (to === OrderStatus.Processing) return adminOrdersApi.takeInProcess(id, adminToken!);
+      if (to === OrderStatus.Shipped) return adminOrdersApi.markShipped(id, adminToken!);
+      return adminOrdersApi.markDelivered(id, adminToken!);
+    },
+    onSuccess: () => {
+      // Ключ ["admin-orders"] инвалидирует все страницы/фильтры списка разом
+      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      toast.success("Статус обновлён");
+    },
+    onError: (e) => notifyError(e, "Не удалось сменить статус"),
   });
 }
 

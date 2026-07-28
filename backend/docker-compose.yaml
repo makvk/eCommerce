@@ -27,6 +27,22 @@ services:
     networks:
       - ecommerce-network
 
+  ecommerce-minio:
+    image: minio/minio:latest
+    container_name: ecommerce-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    volumes:
+      - minio_data:/data
+    networks:
+      - ecommerce-network
+
   ecommerce-api:
     image: ecommerce-api-image
     container_name: ecommerce-webapi
@@ -39,14 +55,22 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=ecommerce-db;Port=5432;Database=ecommerce_db;Username=postgres;Password=your_pass
+      - MinioSettings__Endpoint=ecommerce-minio:9000
+      - MinioSettings__AccessKey=minioadmin
+      - MinioSettings__SecretKey=minioadmin
+      - MinioSettings__BucketName=product-images
+      - MinioSettings__UseSsl=false
+      - MinioSettings__PublicBaseUrl=http://localhost:9000
     depends_on:
       - ecommerce-db
+      - ecommerce-minio
     networks:
       - ecommerce-network
 
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
 
 networks:
   ecommerce-network:

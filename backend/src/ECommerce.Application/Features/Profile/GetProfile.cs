@@ -23,7 +23,7 @@ public class GetProfile
             var customerStrId = _currentUserService.UserId;
             if (customerStrId == null || !Guid.TryParse(customerStrId, out var customerId))
             {
-                throw new UnauthorizedAccessException("Invalid user id");
+                throw new UnauthorizedException("Invalid user id");
             }
 
             var customer = await _eDbContext.Customers

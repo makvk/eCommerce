@@ -34,7 +34,7 @@ public class ChangeCurrency
             var userIdString = currentUserService.UserId;
                 
             if (userIdString == null || !Guid.TryParse(userIdString, out var userId))
-                throw new Exception("Invalid user id");
+                throw new UnauthorizedException("Invalid user id");
             var user = await eDbContext.Customers
                 .FirstOrDefaultAsync(c => c.Id == userId, cancellationToken)
                 ?? throw new NotFoundException("User not found");

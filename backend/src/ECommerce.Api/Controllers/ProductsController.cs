@@ -72,4 +72,36 @@ public class ProductsController(IMediator mediator) : ControllerBase
         
         return NoContent(); 
     }
+
+    [HttpPut("{id:guid}/image")]
+    [Authorize(Roles = "Admin")]
+    [RequestSizeLimit(5 * 1024 * 1024)]
+    [EndpointDescription("Upload/replace a product image")]
+    public async Task<IActionResult> UploadProductImage(
+        [FromRoute] Guid id,
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (file.Length == 0)
+        {
+            throw new BadRequestException("File is empty");
+        }
+
+        await using var stream = file.OpenReadStream();
+        var command = new UploadProductImage.Command(id, stream, file.Length, file.ContentType);
+        var result = await _mediator.Send(command, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpDelete("{id:guid}/image")]
+    [Authorize(Roles = "Admin")]
+    [EndpointDescription("Remove a product image")]
+    public async Task<IActionResult> DeleteProductImage(
+        [FromRoute] Guid id,
+        CancellationToken cancellationToken)
+    {
+        var command = new DeleteProductImage.Command(id);
+        await _mediator.Send(command, cancellationToken);
+        return NoContent();
+    }
 }

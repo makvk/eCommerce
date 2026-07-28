@@ -54,4 +54,10 @@ public class Product
         StockQuantity = quantity;
         LastUpdatedAt =  DateTimeOffset.UtcNow;
     }
+
+    public void SetImageUrl(string? imageUrl)
+    {
+        ImageUrl = imageUrl;
+        LastUpdatedAt = DateTimeOffset.UtcNow;
+    }
 }

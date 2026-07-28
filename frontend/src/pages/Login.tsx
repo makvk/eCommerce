@@ -27,8 +27,8 @@ export function LoginPage() {
       toast.success("С возвращением!");
       navigate(from, { replace: true });
     } catch (error) {
-      // Login.Handler кидает обычный Exception → прилетает 500, а не 401.
-      // Текст ("User not found" / "Password incorrect") достаём из details. REVIEW.md п.3
+      // Login.Handler отдаёт единое сообщение на неверный email/пароль (401),
+      // чтобы не палить, какой из двух введён неверно.
       notifyError(error, "Не удалось войти");
     } finally {
       setPending(false);
