@@ -206,8 +206,11 @@ export function CartPage() {
 
               {notEnoughMoney && (
                 <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-400">
-                  На балансе недостаточно средств. Заказ не пройдёт — пополнить
-                  баланс через API сейчас нельзя, см. REVIEW.md п.1.
+                  На балансе недостаточно средств.{" "}
+                  <Link to="/profile" className="underline underline-offset-2">
+                    Пополните баланс
+                  </Link>{" "}
+                  в профиле, затем оформите заказ.
                 </p>
               )}
 

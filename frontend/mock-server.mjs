@@ -258,8 +258,8 @@ const server = createServer(async (req, res) => {
       email: u.email,
       password: u.password,
       name: u.fullName ?? { firstName: "", lastName: "", middleName: "" },
-      // Настоящий бэк выдаёт 0 — здесь даём стартовый баланс, чтобы флоу заказа было видно
-      balance: { currency: "RUB", amount: 150000 },
+      // Как настоящий бэкенд: стартовый баланс 0, пополнение через POST /api/profile/balance
+      balance: { currency: "RUB", amount: 0 },
     };
     customers.set(u.email, customer);
     return json(res, 200, { token: makeToken(customer.id, "Customer", customer.email) });
@@ -584,10 +584,23 @@ const server = createServer(async (req, res) => {
     return noContent(res);
   }
 
+  if (path === "/api/profile/balance" && method === "POST") {
+    if (!requireAuth()) return;
+    const customer = [...customers.values()].find((c) => c.id === auth.userId);
+    if (!customer) return fail(res, "User not found");
+    if (typeof body.amount !== "number" || body.amount <= 0)
+      return invalid(res, { Amount: ["Amount must be greater than zero"] });
+    customer.balance = {
+      ...customer.balance,
+      amount: customer.balance.amount + body.amount,
+    };
+    return noContent(res);
+  }
+
   fail(res, `Route not found: ${method} ${path}`, 404);
 });
 
 server.listen(PORT, () => {
   console.log(`[mock] ECommerce API работает на http://localhost:${PORT}`);
-  console.log(`[mock] Зарегистрируйте любой аккаунт — стартовый баланс 150 000 ₽`);
+  console.log(`[mock] Зарегистрируйте любой аккаунт — баланс стартует с 0, пополните в /profile`);
 });

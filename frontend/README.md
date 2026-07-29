@@ -41,7 +41,7 @@ Vite проксирует `/api`, `/get-test-admin-token` и `/health` на `htt
 | Корзина `/cart` | `GET/DELETE /api/cart`, `PATCH/DELETE /api/cart/items` |
 | Оформление `/checkout` | `POST /api/orders` — с разбором ошибок FluentValidation по полям |
 | Заказы `/orders`, `/orders/:id` | `GET /api/orders`, `PATCH /api/orders/{id}/cancel` |
-| Профиль `/profile` | `GET /api/profile`, `PATCH /api/profile/change-currency` |
+| Профиль `/profile` | `GET /api/profile`, `POST /api/profile/balance`, `PATCH /api/profile/change-currency` |
 | Вход / регистрация | `POST /api/auth/login`, `/register` |
 | Админка `/admin` | CRUD товаров, `GET /api/admin/orders` (все заказы, фильтр по статусу, пагинация), переходы статусов заказа |
 
@@ -69,13 +69,12 @@ src/
 
 Отмечены комментариями в коде со ссылкой на пункт `../REVIEW.md`:
 
-- **Баланс нельзя пополнить** — эндпоинта нет, у нового аккаунта 0 ₽ и заказ не пройдёт.
-  Против настоящего бэкенда оформление упрётся в «недостаточно средств». Мок это обходит,
-  выдавая стартовый баланс.
 - **Каталог грузится целиком** — пагинации в API нет, поиск и сортировка на клиенте.
 
 Исправлено (было актуально раньше, см. историю `REVIEW.md`):
 
+- ~~Баланс нельзя пополнить~~ — `POST /api/profile/balance` с `{ amount }` пополняет
+  счёт в текущей валюте; форма на странице профиля, пресеты и произвольная сумма.
 - ~~Картинок у товаров нет~~ — `PUT /api/products/{id}/image` (Admin, `multipart/form-data`)
   грузит файл в MinIO и сохраняет публичный URL в `Product.ImageUrl`; `DELETE .../image` удаляет.
   Управляется из вкладки «Товары» в админке, `ProductImage` рисует градиентный плейсхолдер,

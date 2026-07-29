@@ -32,4 +32,14 @@ public class ProfileController(IMediator mediator) : ControllerBase
         await _mediator.Send(command);
         return NoContent();
     }
+
+    [HttpPost("balance")]
+    [Authorize(Roles = "Customer")]
+    [EndpointDescription("Top up user balance")]
+    public async Task<IActionResult> TopUpBalance(
+        [FromBody] TopUpBalance.Command command)
+    {
+        await _mediator.Send(command);
+        return NoContent();
+    }
 }

@@ -146,8 +146,7 @@ export function RegisterPage() {
         </Button>
 
         <p className="text-xs text-muted-foreground">
-          Баланс нового аккаунта — 0 ₽. Пополнить его через API пока нельзя,
-          см. REVIEW.md п.1.
+          Баланс нового аккаунта — 0 ₽. Пополнить его можно в профиле после входа.
         </p>
       </form>
     </AuthShell>

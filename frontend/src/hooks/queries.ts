@@ -214,3 +214,16 @@ export function useChangeCurrency() {
     onError: (e) => notifyError(e, "Не удалось сменить валюту"),
   });
 }
+
+export function useTopUpBalance() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (amount: number) => profileApi.topUp(amount),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: qk.profile });
+      queryClient.invalidateQueries({ queryKey: qk.cart });
+      toast.success("Баланс пополнен");
+    },
+    onError: (e) => notifyError(e, "Не удалось пополнить баланс"),
+  });
+}

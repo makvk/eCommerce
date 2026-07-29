@@ -174,4 +174,11 @@ export const profileApi = {
       method: "PATCH",
       body: { newCurrency },
     }),
+
+  /** POST /api/profile/balance — пополняет баланс в текущей валюте пользователя */
+  topUp: (amount: number) =>
+    request<void>("/api/profile/balance", {
+      method: "POST",
+      body: { amount },
+    }),
 };

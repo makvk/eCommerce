@@ -1,8 +1,12 @@
+import { useState, type FormEvent } from "react";
 import { Wallet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -10,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useChangeCurrency, useProfile } from "@/hooks/queries";
+import { useChangeCurrency, useProfile, useTopUpBalance } from "@/hooks/queries";
 import { formatMoney, initialsOf } from "@/lib/format";
 import { SUPPORTED_CURRENCIES } from "@/api/types";
 
@@ -21,9 +25,13 @@ const CURRENCY_LABELS: Record<string, string> = {
   KZT: "Тенге (₸)",
 };
 
+const PRESET_AMOUNTS = [500, 1000, 5000, 10000] as const;
+
 export function ProfilePage() {
   const { data: profile, isLoading } = useProfile();
   const changeCurrency = useChangeCurrency();
+  const topUp = useTopUpBalance();
+  const [amount, setAmount] = useState("");
 
   if (isLoading || !profile) {
     return (
@@ -37,6 +45,15 @@ export function ProfilePage() {
   const fullName = [profile.name.lastName, profile.name.firstName, profile.name.middleName]
     .filter(Boolean)
     .join(" ");
+
+  function handleTopUp(event: FormEvent) {
+    event.preventDefault();
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) return;
+    topUp.mutate(value, {
+      onSuccess: () => setAmount(""),
+    });
+  }
 
   return (
     <div className="space-y-8">
@@ -89,6 +106,46 @@ export function ProfilePage() {
 
             <Separator />
 
+            <form onSubmit={handleTopUp} className="space-y-3">
+              <Label htmlFor="top-up-amount">Пополнить баланс</Label>
+              <div className="flex flex-wrap gap-2">
+                {PRESET_AMOUNTS.map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={topUp.isPending}
+                    onClick={() => setAmount(String(preset))}
+                  >
+                    +{preset.toLocaleString("ru-RU")}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  id="top-up-amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  placeholder={`Сумма в ${profile.balance.currency}`}
+                  value={amount}
+                  disabled={topUp.isPending}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+                <Button type="submit" disabled={topUp.isPending || !amount}>
+                  {topUp.isPending ? "…" : "Пополнить"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Сумма зачисляется в текущей валюте счёта ({profile.balance.currency}).
+                Платёжный шлюз не подключён — это учебное пополнение.
+              </p>
+            </form>
+
+            <Separator />
+
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="currency">
                 Валюта счёта
@@ -114,13 +171,6 @@ export function ProfilePage() {
                 воркером раз в 12 часов.
               </p>
             </div>
-
-            {profile.balance.amount === 0 && (
-              <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-400">
-                Баланс нулевой, а эндпоинта пополнения в API нет — оформить заказ не
-                получится. Как это чинится, описано в REVIEW.md п.1.
-              </p>
-            )}
           </CardContent>
         </Card>
       </div>
