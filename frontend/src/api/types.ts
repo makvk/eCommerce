@@ -41,7 +41,7 @@ export enum OrderStatus {
 
 export type RawStatus = OrderStatus | number | string;
 
-/** ECommerce.Domain.Entities.Product — контроллер отдаёт сущность как есть */
+/** ProductDto — каталог и админка */
 export interface Product {
   id: string;
   name: string;
@@ -51,6 +51,14 @@ export interface Product {
   imageUrl: string | null;
   createdAt: string;
   lastUpdatedAt: string;
+}
+
+/** GetProducts.ProductsResponseDto / Admin.GetProducts — список с пагинацией */
+export interface ProductsResponse {
+  products: Product[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
 }
 
 /** ECommerce.Domain.Entities.CartItem */

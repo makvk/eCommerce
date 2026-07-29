@@ -6,7 +6,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Options;
 
-namespace ECommerce.Application.Features.Products;
+namespace ECommerce.Application.Features.Products.Admin;
 
 public class UpdateProduct
 {
@@ -31,9 +31,9 @@ public class UpdateProduct
             RuleFor(x => x.Data.Price)
                 .NotNull();
             RuleFor(x => x.Data.Price.Currency)
-                .NotNull()
+                .NotEmpty()
                 .Must(c => options.Value.SupportedCurrencies.Contains(c))
-                .WithMessage($"Currency not supported");
+                .WithMessage("Currency not supported");
             RuleFor(x => x.Data.Price.Amount)
                 .NotNull()
                 .GreaterThan(0);
@@ -45,23 +45,17 @@ public class UpdateProduct
 
     public class Handler(IEDbContext eDbContext) : IRequestHandler<Command>
     {
-        private readonly IEDbContext _eDbContext = eDbContext;
-
         public async Task Handle(Command request, CancellationToken cancellationToken)
         {
-            var product = await _eDbContext.GetProductByIdAsync(request.Id, cancellationToken);
-
-            if (product == null)
-            {
-                throw new NotFoundException("Product not found");
-            }
+            var product = await eDbContext.GetProductByIdAsync(request.Id, cancellationToken)
+                ?? throw new NotFoundException("Product not found");
 
             product.UpdateDetails(
                 request.Data.Name,
                 request.Data.Description,
                 request.Data.Price,
                 request.Data.StockQuantity);
-            await _eDbContext.SaveChangesAsync(cancellationToken);
+            await eDbContext.SaveChangesAsync(cancellationToken);
         }
     }
 }

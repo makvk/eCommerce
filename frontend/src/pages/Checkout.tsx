@@ -37,9 +37,12 @@ export function CheckoutPage() {
 
   const items = cart?.cart.items ?? [];
   const total = cart?.money;
+  const notEnoughMoney =
+    Boolean(profile && total) && profile!.balance.amount < total!.amount;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (notEnoughMoney) return;
     setFieldErrors({});
 
     try {
@@ -162,11 +165,21 @@ export function CheckoutPage() {
                 </div>
               )}
 
+              {notEnoughMoney && (
+                <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-400">
+                  На балансе недостаточно средств.{" "}
+                  <Link to="/profile" className="underline underline-offset-2">
+                    Пополните баланс
+                  </Link>
+                  , затем оформите заказ.
+                </p>
+              )}
+
               <Button
                 type="submit"
                 size="lg"
                 className="w-full"
-                disabled={createOrder.isPending}
+                disabled={createOrder.isPending || notEnoughMoney}
               >
                 <CreditCard className="size-4" />
                 {createOrder.isPending ? "Оформляем…" : "Оплатить с баланса"}

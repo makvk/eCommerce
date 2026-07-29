@@ -22,7 +22,12 @@ public class GetOrders
 
     public record ResponseDto(List<OrderDto> Orders, int TotalCount, int Page, int PageSize);
 
-    public record Query(Guid? CustomerId, Status? Status, int Page = 1, int PageSize = 20) : IRequest<ResponseDto>;
+    public record Query(
+        Guid? CustomerId,
+        Status? Status,
+        bool ActiveOnly = false,
+        int Page = 1,
+        int PageSize = 20) : IRequest<ResponseDto>;
 
     public class QueryValidator : AbstractValidator<Query>
     {
@@ -35,6 +40,14 @@ public class GetOrders
 
     public class Handler(IEDbContext eDbContext) : IRequestHandler<Query, ResponseDto>
     {
+        /// <summary>Статусы, для которых у админа ещё есть переход (не Delivered/Cancelled).</summary>
+        private static readonly Status[] ActiveStatuses =
+        [
+            Status.Created,
+            Status.Processing,
+            Status.Shipped,
+        ];
+
         private readonly IEDbContext _eDbContext = eDbContext;
 
         public async Task<ResponseDto> Handle(Query request, CancellationToken cancellationToken)
@@ -49,6 +62,8 @@ public class GetOrders
 
             if (request.Status.HasValue)
                 ordersQuery = ordersQuery.Where(o => o.Status == request.Status.Value);
+            else if (request.ActiveOnly)
+                ordersQuery = ordersQuery.Where(o => ActiveStatuses.Contains(o.Status));
 
             var totalCount = await ordersQuery.CountAsync(cancellationToken);
 

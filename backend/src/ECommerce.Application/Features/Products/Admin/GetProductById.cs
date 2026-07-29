@@ -3,7 +3,7 @@ using ECommerce.Application.Common.Exceptions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace ECommerce.Application.Features.Products;
+namespace ECommerce.Application.Features.Products.Admin;
 
 public class GetProductById
 {

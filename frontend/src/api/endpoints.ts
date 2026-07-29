@@ -10,6 +10,7 @@ import type {
   OrdersResponse,
   OrderStatus,
   Product,
+  ProductsResponse,
   Profile,
 } from "./types";
 
@@ -37,46 +38,73 @@ export const authApi = {
     request<{ token: string }>("/get-test-admin-token", { token: null }),
 };
 
-/* ────────────────────────── products ──────────────────────── */
+/* ────────────────────────── products (public catalog) ──────────────────────── */
+
+export type ProductsListParams = {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+};
 
 export const productsApi = {
-  /** GET /api/products — без пагинации и фильтров, фильтруем на клиенте */
-  list: (signal?: AbortSignal) => request<Product[]>("/api/products", { signal }),
+  /** GET /api/products — поиск + пагинация */
+  list: (params: ProductsListParams = {}, signal?: AbortSignal) => {
+    const query = new URLSearchParams();
+    if (params.search) query.set("search", params.search);
+    if (params.page) query.set("page", String(params.page));
+    if (params.pageSize) query.set("pageSize", String(params.pageSize));
+    const qs = query.toString();
+    return request<ProductsResponse>(`/api/products${qs ? `?${qs}` : ""}`, { signal });
+  },
 
   byId: (id: string, signal?: AbortSignal) =>
     request<Product>(`/api/products/${id}`, { signal }),
+};
 
-  /** POST /api/products (Admin) → Guid нового товара */
+/* ────────────────────────── products (admin) ──────────────────────── */
+
+export const adminProductsApi = {
+  list: (params: ProductsListParams = {}, token: string, signal?: AbortSignal) => {
+    const query = new URLSearchParams();
+    if (params.search) query.set("search", params.search);
+    if (params.page) query.set("page", String(params.page));
+    if (params.pageSize) query.set("pageSize", String(params.pageSize));
+    const qs = query.toString();
+    return request<ProductsResponse>(`/api/admin/products${qs ? `?${qs}` : ""}`, {
+      token,
+      signal,
+    });
+  },
+
+  byId: (id: string, token: string, signal?: AbortSignal) =>
+    request<Product>(`/api/admin/products/${id}`, { token, signal }),
+
   create: (
     body: { name: string; description: string; price: Money; stockQuantity: number },
     token: string,
-  ) => request<string>("/api/products", { method: "POST", body, token }),
+  ) => request<string>("/api/admin/products", { method: "POST", body, token }),
 
-  /** PUT /api/products/{id} (Admin) → 204 */
   update: (
     id: string,
     body: { name: string; description: string; price: Money; stockQuantity: number },
     token: string,
-  ) => request<void>(`/api/products/${id}`, { method: "PUT", body, token }),
+  ) => request<void>(`/api/admin/products/${id}`, { method: "PUT", body, token }),
 
-  /** DELETE /api/products/{id} (Admin) → 204 */
   remove: (id: string, token: string) =>
-    request<void>(`/api/products/${id}`, { method: "DELETE", token }),
+    request<void>(`/api/admin/products/${id}`, { method: "DELETE", token }),
 
-  /** PUT /api/products/{id}/image (Admin, multipart/form-data) → { imageUrl } */
   uploadImage: (id: string, file: File, token: string) => {
     const body = new FormData();
     body.append("file", file);
-    return request<{ imageUrl: string }>(`/api/products/${id}/image`, {
+    return request<{ imageUrl: string }>(`/api/admin/products/${id}/image`, {
       method: "PUT",
       body,
       token,
     });
   },
 
-  /** DELETE /api/products/{id}/image (Admin) → 204 */
   removeImage: (id: string, token: string) =>
-    request<void>(`/api/products/${id}/image`, { method: "DELETE", token }),
+    request<void>(`/api/admin/products/${id}/image`, { method: "DELETE", token }),
 };
 
 /* ──────────────────────────── cart ────────────────────────── */
@@ -131,6 +159,7 @@ export const adminOrdersApi = {
     params: {
       customerId?: string;
       status?: OrderStatus;
+      activeOnly?: boolean;
       page?: number;
       pageSize?: number;
     } = {},
@@ -140,6 +169,7 @@ export const adminOrdersApi = {
     const query = new URLSearchParams();
     if (params.customerId) query.set("customerId", params.customerId);
     if (params.status !== undefined) query.set("status", String(params.status));
+    if (params.activeOnly) query.set("activeOnly", "true");
     if (params.page) query.set("page", String(params.page));
     if (params.pageSize) query.set("pageSize", String(params.pageSize));
     const qs = query.toString();

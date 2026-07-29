@@ -15,14 +15,16 @@ public class AdminOrdersController(IMediator mediator) : ControllerBase
     private readonly IMediator _mediator = mediator;
 
     [HttpGet]
-    [EndpointDescription("Get all orders, optionally filtered by customer or status")]
+    [EndpointDescription("Get all orders, optionally filtered by customer, status, or active-only (actionable statuses)")]
     public async Task<IActionResult> GetOrders(
         [FromQuery] Guid? customerId,
         [FromQuery] Status? status,
+        [FromQuery] bool activeOnly = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        var response = await _mediator.Send(new AdminOrders.GetOrders.Query(customerId, status, page, pageSize));
+        var response = await _mediator.Send(
+            new AdminOrders.GetOrders.Query(customerId, status, activeOnly, page, pageSize));
         return Ok(response);
     }
 

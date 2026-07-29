@@ -1,4 +1,4 @@
-.PHONY: run apiadd appadd infadd db-up db-logs db-down
+.PHONY: run apiadd appadd infadd db-up db-logs db-down seed-products
 
 run:
 	make db-down
@@ -22,3 +22,7 @@ db-logs:
 
 db-down:
 	docker compose down
+
+# Нужен запущенный API (DEBUG) + MinIO. Скачивает фото с Unsplash и кладёт в MinIO.
+seed-products:
+	node ./scripts/seed-products.mjs http://localhost:5269

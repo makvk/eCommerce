@@ -3,7 +3,7 @@ using ECommerce.Application.Common.Exceptions;
 using FluentValidation;
 using MediatR;
 
-namespace ECommerce.Application.Features.Products;
+namespace ECommerce.Application.Features.Products.Admin;
 
 public class UploadProductImage
 {
@@ -46,7 +46,6 @@ public class UploadProductImage
 
             var previousImageUrl = product.ImageUrl;
             var extension = AllowedContentTypes[request.ContentType];
-            // Один товар — один файл: имя объекта фиксировано его id, повторная загрузка перезаписывает старый.
             var objectName = $"products/{product.Id}{extension}";
 
             var imageUrl = await fileStorageService.UploadAsync(
@@ -58,7 +57,6 @@ public class UploadProductImage
             product.SetImageUrl(imageUrl);
             await eDbContext.SaveChangesAsync(cancellationToken);
 
-            // Старый файл подчищаем уже после того, как новый успешно сохранён и закоммичен в БД.
             if (!string.IsNullOrEmpty(previousImageUrl) && previousImageUrl != imageUrl)
                 await fileStorageService.DeleteAsync(previousImageUrl, cancellationToken);
 

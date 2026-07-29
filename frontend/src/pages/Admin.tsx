@@ -47,10 +47,10 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { ProductImage } from "@/components/ProductImage";
 import { useAuth } from "@/context/AuthContext";
-import { useAdminOrderTransition, useAdminOrders, useProducts, qk, notifyError } from "@/hooks/queries";
-import { productsApi } from "@/api/endpoints";
+import { useAdminOrderTransition, useAdminOrders, useAdminProducts, notifyError } from "@/hooks/queries";
+import { adminProductsApi } from "@/api/endpoints";
 import { formatMoney, STATUS_LABEL, normalizeStatus } from "@/lib/format";
-import { OrderStatus, type Product } from "@/api/types";
+import { OrderStatus, SUPPORTED_CURRENCIES, type Currency, type Product } from "@/api/types";
 
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -65,8 +65,12 @@ const STATUS_FILTER_OPTIONS = [
   OrderStatus.Cancelled,
 ] as const;
 
-/** Цена товара создаётся только в базовой валюте — AddProduct.CommandValidator это требует. */
-const BASE_CURRENCY = "RUB";
+const CURRENCY_LABELS: Record<Currency, string> = {
+  RUB: "₽ RUB",
+  USD: "$ USD",
+  EUR: "€ EUR",
+  KZT: "₸ KZT",
+};
 
 export function AdminPage() {
   return (
@@ -101,6 +105,7 @@ type ProductForm = {
   name: string;
   description: string;
   amount: string;
+  currency: Currency;
   stockQuantity: string;
 };
 
@@ -108,30 +113,45 @@ const EMPTY_FORM: ProductForm = {
   name: "",
   description: "",
   amount: "",
+  currency: "RUB",
   stockQuantity: "",
 };
 
 function ProductsTab() {
   const { adminToken } = useAuth();
   const queryClient = useQueryClient();
-  const { data: products, isLoading } = useProducts();
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+
+  const { data, isLoading } = useAdminProducts({
+    search: search || undefined,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+  const products = data?.products ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState<ProductForm>(EMPTY_FORM);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: qk.products });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["admin-products"] });
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+  };
 
   const save = useMutation({
     mutationFn: async () => {
       const body = {
         name: form.name.trim(),
         description: form.description.trim(),
-        price: { currency: BASE_CURRENCY, amount: Number(form.amount) },
+        price: { currency: form.currency, amount: Number(form.amount) },
         stockQuantity: Number(form.stockQuantity),
       };
-      if (editing) return productsApi.update(editing.id, body, adminToken!);
-      return productsApi.create(body, adminToken!);
+      if (editing) return adminProductsApi.update(editing.id, body, adminToken!);
+      return adminProductsApi.create(body, adminToken!);
     },
     onSuccess: () => {
       invalidate();
@@ -142,7 +162,7 @@ function ProductsTab() {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => productsApi.remove(id, adminToken!),
+    mutationFn: (id: string) => adminProductsApi.remove(id, adminToken!),
     onSuccess: () => {
       invalidate();
       toast.success("Товар удалён");
@@ -151,7 +171,7 @@ function ProductsTab() {
   });
 
   const uploadImage = useMutation({
-    mutationFn: (file: File) => productsApi.uploadImage(editing!.id, file, adminToken!),
+    mutationFn: (file: File) => adminProductsApi.uploadImage(editing!.id, file, adminToken!),
     onSuccess: (result) => {
       invalidate();
       setEditing((prev) => (prev ? { ...prev, imageUrl: result.imageUrl } : prev));
@@ -161,7 +181,7 @@ function ProductsTab() {
   });
 
   const removeImage = useMutation({
-    mutationFn: () => productsApi.removeImage(editing!.id, adminToken!),
+    mutationFn: () => adminProductsApi.removeImage(editing!.id, adminToken!),
     onSuccess: () => {
       invalidate();
       setEditing((prev) => (prev ? { ...prev, imageUrl: null } : prev));
@@ -197,6 +217,9 @@ function ProductsTab() {
       name: product.name,
       description: product.description,
       amount: String(product.price.amount),
+      currency: (SUPPORTED_CURRENCIES.includes(product.price.currency as Currency)
+        ? product.price.currency
+        : "RUB") as Currency,
       stockQuantity: String(product.stockQuantity),
     });
     setDialogOpen(true);
@@ -207,16 +230,33 @@ function ProductsTab() {
     save.mutate();
   }
 
+  function applySearch() {
+    setSearch(searchInput.trim());
+    setPage(1);
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          {products?.length ?? 0} товаров в каталоге
+          {totalCount} товаров в каталоге
         </p>
-        <Button onClick={openCreate}>
-          <Plus className="size-4" />
-          Добавить товар
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && applySearch()}
+            placeholder="Поиск…"
+            className="w-48"
+          />
+          <Button type="button" variant="outline" onClick={applySearch}>
+            Найти
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="size-4" />
+            Добавить товар
+          </Button>
+        </div>
       </div>
 
       <Card className="py-0">
@@ -227,7 +267,7 @@ function ProductsTab() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : !products?.length ? (
+          ) : !products.length ? (
             <div className="p-6">
               <EmptyState
                 icon={Plus}
@@ -319,6 +359,30 @@ function ProductsTab() {
         </CardContent>
       </Card>
 
+      {totalPages > 1 && (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {page} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      )}
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <form onSubmit={handleSubmit}>
@@ -327,7 +391,8 @@ function ProductsTab() {
                 {editing ? "Редактировать товар" : "Новый товар"}
               </DialogTitle>
               <DialogDescription>
-                Цена задаётся в {BASE_CURRENCY} — этого требует валидатор бэкенда.
+                Цену можно задать в любой поддерживаемой валюте (RUB, USD, EUR, KZT).
+                При оплате сумма конвертируется в валюту баланса покупателя.
               </DialogDescription>
             </DialogHeader>
 
@@ -394,9 +459,29 @@ function ProductsTab() {
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                 />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="p-price">Цена, {BASE_CURRENCY}</Label>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-2 sm:col-span-1">
+                  <Label htmlFor="p-currency">Валюта</Label>
+                  <Select
+                    value={form.currency}
+                    onValueChange={(value) =>
+                      setForm({ ...form, currency: value as Currency })
+                    }
+                  >
+                    <SelectTrigger id="p-currency" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SUPPORTED_CURRENCIES.map((currency) => (
+                        <SelectItem key={currency} value={currency}>
+                          {CURRENCY_LABELS[currency]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 sm:col-span-1">
+                  <Label htmlFor="p-price">Цена</Label>
                   <Input
                     id="p-price"
                     type="number"
@@ -407,7 +492,7 @@ function ProductsTab() {
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 sm:col-span-1">
                   <Label htmlFor="p-stock">На складе</Label>
                   <Input
                     id="p-stock"
@@ -448,12 +533,14 @@ function ProductsTab() {
 function OrdersTab() {
   const { isAdmin } = useAuth();
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
+  // active = Created/Processing/Shipped — с ними админ ещё может взаимодействовать
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | "all" | "active">("active");
 
   const { data, isLoading } = useAdminOrders({
     page,
     pageSize: PAGE_SIZE,
-    status: statusFilter === "all" ? undefined : statusFilter,
+    status: typeof statusFilter === "number" ? statusFilter : undefined,
+    activeOnly: statusFilter === "active",
   });
 
   const transition = useAdminOrderTransition();
@@ -463,7 +550,8 @@ function OrdersTab() {
   const hasNextPage = page * PAGE_SIZE < totalCount;
 
   function handleStatusFilterChange(value: string) {
-    setStatusFilter(value === "all" ? "all" : (Number(value) as OrderStatus));
+    if (value === "all" || value === "active") setStatusFilter(value);
+    else setStatusFilter(Number(value) as OrderStatus);
     setPage(1);
   }
 
@@ -471,14 +559,16 @@ function OrdersTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          {totalCount} заказ{totalCount === 1 ? "" : "ов"} всего — <code>GET /api/admin/orders</code>{" "}
-          показывает заказы всех покупателей.
+          {totalCount} заказ{totalCount === 1 ? "" : "ов"}
+          {statusFilter === "active" ? " в работе" : ""} —{" "}
+          <code className="text-xs">GET /api/admin/orders</code>
         </p>
         <Select value={String(statusFilter)} onValueChange={handleStatusFilterChange}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-56">
             <SelectValue placeholder="Статус" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="active">Активные (можно обработать)</SelectItem>
             <SelectItem value="all">Все статусы</SelectItem>
             {STATUS_FILTER_OPTIONS.map((status) => (
               <SelectItem key={status} value={String(status)}>
@@ -498,7 +588,15 @@ function OrdersTab() {
       ) : isLoading ? (
         <Skeleton className="h-40 w-full rounded-xl" />
       ) : orders.length === 0 ? (
-        <EmptyState icon={TriangleAlert} title="Заказов нет" />
+        <EmptyState
+          icon={TriangleAlert}
+          title={statusFilter === "active" ? "Нет активных заказов" : "Заказов нет"}
+          description={
+            statusFilter === "active"
+              ? "Все заказы уже доставлены или отменены. Переключите фильтр на «Все статусы»."
+              : undefined
+          }
+        />
       ) : (
         <>
           <Card className="py-0">

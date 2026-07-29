@@ -214,9 +214,15 @@ export function CartPage() {
                 </p>
               )}
 
-              <Button asChild className="w-full" size="lg">
-                <Link to="/checkout">Оформить заказ</Link>
-              </Button>
+              {notEnoughMoney ? (
+                <Button className="w-full" size="lg" disabled>
+                  Оформить заказ
+                </Button>
+              ) : (
+                <Button asChild className="w-full" size="lg">
+                  <Link to="/checkout">Оформить заказ</Link>
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>

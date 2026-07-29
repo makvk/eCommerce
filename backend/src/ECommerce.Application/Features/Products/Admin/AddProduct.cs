@@ -1,4 +1,3 @@
-using System.Data.SqlTypes;
 using ECommerce.Application.Common;
 using ECommerce.Domain.Entities;
 using ECommerce.Domain.Modles;
@@ -7,12 +6,12 @@ using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Options;
 
-namespace ECommerce.Application.Features.Products;
+namespace ECommerce.Application.Features.Products.Admin;
 
 public class AddProduct
 {
     public record Command(string Name, string Description, Money Price, int StockQuantity) : IRequest<Guid>;
-    
+
     public class CommandValidator : AbstractValidator<Command>
     {
         public CommandValidator(IOptions<CurrencyOptions> options)
@@ -26,9 +25,9 @@ public class AddProduct
             RuleFor(x => x.Price)
                 .NotNull();
             RuleFor(x => x.Price.Currency)
-                .NotNull()
-                .Must(c => c == options.Value.DefaultCurrency)
-                .WithMessage($"Currency not supported");
+                .NotEmpty()
+                .Must(c => options.Value.SupportedCurrencies.Contains(c))
+                .WithMessage("Currency not supported");
             RuleFor(x => x.Price.Amount)
                 .NotNull()
                 .GreaterThan(0);
@@ -36,22 +35,19 @@ public class AddProduct
                 .NotNull()
                 .GreaterThanOrEqualTo(0);
         }
+    }
 
-        public class Handler(IEDbContext eDbContext) : IRequestHandler<Command, Guid>
+    public class Handler(IEDbContext eDbContext) : IRequestHandler<Command, Guid>
+    {
+        public async Task<Guid> Handle(Command request, CancellationToken cancellationToken)
         {
-            private readonly IEDbContext _eDbContext = eDbContext;
-
-            public async Task<Guid> Handle(Command request, CancellationToken cancellationToken)
-            {
-                var newProduct = new Product(
-                    request.Name,
-                    request.Description,
-                    request.Price,
-                    request.StockQuantity);
-                await _eDbContext.AddProductAsync(newProduct, cancellationToken);
-                
-                return newProduct.Id;
-            }
+            var newProduct = new Product(
+                request.Name,
+                request.Description,
+                request.Price,
+                request.StockQuantity);
+            await eDbContext.AddProductAsync(newProduct, cancellationToken);
+            return newProduct.Id;
         }
     }
 }

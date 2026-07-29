@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { PackageSearch, Plus, Search, ServerCrash } from "lucide-react";
+import { ChevronLeft, ChevronRight, PackageSearch, Plus, Search, ServerCrash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,25 +29,39 @@ const SORT_LABELS: Record<SortKey, string> = {
   name: "По названию",
 };
 
+const PAGE_SIZE = 12;
+
 export function CatalogPage() {
-  const { data: products, isLoading, error } = useProducts();
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("new");
   const [inStockOnly, setInStockOnly] = useState(false);
 
-  // GET /api/products не умеет ни поиск, ни сортировку, ни пагинацию
-  // (GetProducts.Query пустой) — поэтому всё считаем на клиенте. REVIEW.md п.6
-  const visible = useMemo(() => {
-    if (!products) return [];
-    const q = search.trim().toLowerCase();
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
 
-    const filtered = products.filter((p) => {
-      if (inStockOnly && p.stockQuantity <= 0) return false;
-      if (!q) return true;
-      return (
-        p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
-      );
-    });
+  const { data, isLoading, error } = useProducts({
+    search: search || undefined,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+
+  const products = data?.products ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  // Сортировку и «в наличии» оставляем на клиенте для текущей страницы —
+  // поиск и пагинация уже на сервере.
+  const visible = useMemo(() => {
+    const filtered = inStockOnly
+      ? products.filter((p) => p.stockQuantity > 0)
+      : products;
 
     const sorted = [...filtered];
     switch (sort) {
@@ -67,7 +81,7 @@ export function CatalogPage() {
         break;
     }
     return sorted;
-  }, [products, search, sort, inStockOnly]);
+  }, [products, sort, inStockOnly]);
 
   return (
     <div className="space-y-8">
@@ -76,7 +90,7 @@ export function CatalogPage() {
         <p className="text-muted-foreground">
           {isLoading
             ? "Загружаем товары…"
-            : `${visible.length} ${plural(visible.length, "товар", "товара", "товаров")}`}
+            : `${totalCount} ${plural(totalCount, "товар", "товара", "товаров")}`}
         </p>
       </div>
 
@@ -84,8 +98,8 @@ export function CatalogPage() {
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Поиск по названию и описанию"
             className="pl-9"
           />
@@ -129,19 +143,47 @@ export function CatalogPage() {
       ) : visible.length === 0 ? (
         <EmptyState
           icon={PackageSearch}
-          title={products?.length ? "Ничего не нашлось" : "В каталоге пока пусто"}
+          title={totalCount ? "Ничего не нашлось" : "В каталоге пока пусто"}
           description={
-            products?.length
+            totalCount
               ? "Попробуйте изменить запрос или снять фильтры."
               : "Добавьте товары через админку — включите её в меню профиля."
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {visible.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {visible.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                aria-label="Предыдущая страница"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                aria-label="Следующая страница"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

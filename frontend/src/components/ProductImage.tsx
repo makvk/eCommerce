@@ -5,7 +5,7 @@ import { placeholderGradient } from "@/lib/format";
 
 /**
  * Показывает картинку товара (ImageUrl, выставляется через
- * PUT /api/products/{id}/image, см. Admin → Товары) либо градиентный
+ * PUT /api/admin/products/{id}/image, см. Admin → Товары) либо градиентный
  * плейсхолдер, если картинки нет или она не загрузилась.
  */
 export function ProductImage({

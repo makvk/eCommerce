@@ -2,7 +2,7 @@ using ECommerce.Application.Common;
 using ECommerce.Application.Common.Exceptions;
 using MediatR;
 
-namespace ECommerce.Application.Features.Products;
+namespace ECommerce.Application.Features.Products.Admin;
 
 public class DeleteProductImage
 {

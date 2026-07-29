@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { adminOrdersApi, cartApi, ordersApi, productsApi, profileApi } from "@/api/endpoints";
+import {
+  adminOrdersApi,
+  adminProductsApi,
+  cartApi,
+  ordersApi,
+  productsApi,
+  profileApi,
+  type ProductsListParams,
+} from "@/api/endpoints";
 import { ApiError } from "@/api/client";
 import { useAuth } from "@/context/AuthContext";
 import { OrderStatus } from "@/api/types";
@@ -8,13 +16,15 @@ import { OrderStatus } from "@/api/types";
 type AdminOrdersParams = {
   customerId?: string;
   status?: OrderStatus;
+  activeOnly?: boolean;
   page?: number;
   pageSize?: number;
 };
 
 export const qk = {
-  products: ["products"] as const,
+  products: (params: ProductsListParams = {}) => ["products", params] as const,
   product: (id: string) => ["product", id] as const,
+  adminProducts: (params: ProductsListParams = {}) => ["admin-products", params] as const,
   cart: ["cart"] as const,
   orders: ["orders"] as const,
   order: (id: string) => ["order", id] as const,
@@ -30,10 +40,10 @@ export function notifyError(error: unknown, fallback = "Что-то пошло �
 
 /* ────────────────────────── products ──────────────────────── */
 
-export function useProducts() {
+export function useProducts(params: ProductsListParams = {}) {
   return useQuery({
-    queryKey: qk.products,
-    queryFn: ({ signal }) => productsApi.list(signal),
+    queryKey: qk.products(params),
+    queryFn: ({ signal }) => productsApi.list(params, signal),
     staleTime: 30_000,
   });
 }
@@ -43,6 +53,15 @@ export function useProduct(id: string | undefined) {
     queryKey: qk.product(id ?? ""),
     queryFn: ({ signal }) => productsApi.byId(id!, signal),
     enabled: Boolean(id),
+  });
+}
+
+export function useAdminProducts(params: ProductsListParams = {}) {
+  const { adminToken } = useAuth();
+  return useQuery({
+    queryKey: qk.adminProducts(params),
+    queryFn: ({ signal }) => adminProductsApi.list(params, adminToken!, signal),
+    enabled: Boolean(adminToken),
   });
 }
 
@@ -134,7 +153,8 @@ export function useCreateOrder() {
       queryClient.invalidateQueries({ queryKey: qk.cart });
       queryClient.invalidateQueries({ queryKey: qk.orders });
       queryClient.invalidateQueries({ queryKey: qk.profile });
-      queryClient.invalidateQueries({ queryKey: qk.products });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
     },
   });
 }
@@ -147,7 +167,8 @@ export function useCancelOrder() {
       queryClient.invalidateQueries({ queryKey: qk.orders });
       queryClient.invalidateQueries({ queryKey: qk.order(id) });
       queryClient.invalidateQueries({ queryKey: qk.profile });
-      queryClient.invalidateQueries({ queryKey: qk.products });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
       toast.success("Заказ отменён, деньги вернулись на баланс");
     },
     onError: (e) => notifyError(e, "Не удалось отменить заказ"),

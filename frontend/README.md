@@ -15,7 +15,7 @@ npm run dev      # фронт на :5173
 
 Мок (`mock-server.mjs`) повторяет контракты настоящего API один-в-один, включая форматы
 ошибок. Данные в памяти, сбрасываются при перезапуске. Регистрируешь любой аккаунт —
-получаешь стартовый баланс 150 000 ₽, и весь флоу проходится целиком.
+получаешь стартовый баланс 0 ₽ (пополни в профиле), и весь флоу проходится целиком.
 
 ### С настоящим бэкендом
 
@@ -36,14 +36,14 @@ Vite проксирует `/api`, `/get-test-admin-token` и `/health` на `htt
 
 | Страница | Эндпоинты |
 |---|---|
-| Каталог `/` | `GET /api/products` — поиск, сортировка, фильтр по наличию (на клиенте) |
+| Каталог `/` | `GET /api/products?search&page&pageSize` — серверный поиск и пагинация |
 | Товар `/products/:id` | `GET /api/products/{id}`, `POST /api/cart/items` |
 | Корзина `/cart` | `GET/DELETE /api/cart`, `PATCH/DELETE /api/cart/items` |
 | Оформление `/checkout` | `POST /api/orders` — с разбором ошибок FluentValidation по полям |
 | Заказы `/orders`, `/orders/:id` | `GET /api/orders`, `PATCH /api/orders/{id}/cancel` |
 | Профиль `/profile` | `GET /api/profile`, `POST /api/profile/balance`, `PATCH /api/profile/change-currency` |
 | Вход / регистрация | `POST /api/auth/login`, `/register` |
-| Админка `/admin` | CRUD товаров, `GET /api/admin/orders` (все заказы, фильтр по статусу, пагинация), переходы статусов заказа |
+| Админка `/admin` | `GET/POST/PUT/DELETE /api/admin/products` (+ image), `GET /api/admin/orders` (фильтр, пагинация), переходы статусов |
 
 Админка включается в меню профиля («Войти как админ») — дёргает `GET /get-test-admin-token`,
 который есть только в DEBUG-сборке бэкенда. Админский токен хранится отдельно от
@@ -69,13 +69,17 @@ src/
 
 Отмечены комментариями в коде со ссылкой на пункт `../REVIEW.md`:
 
-- **Каталог грузится целиком** — пагинации в API нет, поиск и сортировка на клиенте.
+- **Сортировка каталога на клиенте** — сервер отдаёт страницу по `createdAt desc`;
+  сортировка по цене/имени и фильтр «в наличии» считаются на текущей странице.
 
 Исправлено (было актуально раньше, см. историю `REVIEW.md`):
 
+- ~~Каталог грузится целиком~~ — `GET /api/products` и `GET /api/admin/products`
+  отдают `ProductDto` с `search`/`page`/`pageSize`; мутации товаров — только
+  `/api/admin/products`.
 - ~~Баланс нельзя пополнить~~ — `POST /api/profile/balance` с `{ amount }` пополняет
   счёт в текущей валюте; форма на странице профиля, пресеты и произвольная сумма.
-- ~~Картинок у товаров нет~~ — `PUT /api/products/{id}/image` (Admin, `multipart/form-data`)
+- ~~Картинок у товаров нет~~ — `PUT /api/admin/products/{id}/image` (Admin, `multipart/form-data`)
   грузит файл в MinIO и сохраняет публичный URL в `Product.ImageUrl`; `DELETE .../image` удаляет.
   Управляется из вкладки «Товары» в админке, `ProductImage` рисует градиентный плейсхолдер,
   пока картинки нет.

@@ -279,10 +279,52 @@ const server = createServer(async (req, res) => {
     return json(res, 200, { token: makeToken(customer.id, "Customer", customer.email) });
   }
 
-  /* products */
-  if (path === "/api/products" && method === "GET") return json(res, 200, products);
+  /* products — public catalog */
+  if (path === "/api/products" && method === "GET") {
+    const search = (url.searchParams.get("search") ?? "").trim().toLowerCase();
+    const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") ?? 20) || 20));
+    let filtered = products;
+    if (search) {
+      filtered = products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(search) ||
+          p.description.toLowerCase().includes(search),
+      );
+    }
+    const totalCount = filtered.length;
+    const slice = filtered.slice((page - 1) * pageSize, page * pageSize);
+    return json(res, 200, { products: slice, totalCount, page, pageSize });
+  }
 
-  if (path === "/api/products" && method === "POST") {
+  const productMatch = path.match(/^\/api\/products\/([\w-]+)$/);
+  if (productMatch && method === "GET") {
+    const product = products.find((p) => p.id === productMatch[1]);
+    return product
+      ? json(res, 200, product)
+      : fail(res, `Product with id ${productMatch[1]} was not found.`);
+  }
+
+  /* products — admin */
+  if (path === "/api/admin/products" && method === "GET") {
+    if (!requireAdmin()) return;
+    const search = (url.searchParams.get("search") ?? "").trim().toLowerCase();
+    const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") ?? 20) || 20));
+    let filtered = products;
+    if (search) {
+      filtered = products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(search) ||
+          p.description.toLowerCase().includes(search),
+      );
+    }
+    const totalCount = filtered.length;
+    const slice = filtered.slice((page - 1) * pageSize, page * pageSize);
+    return json(res, 200, { products: slice, totalCount, page, pageSize });
+  }
+
+  if (path === "/api/admin/products" && method === "POST") {
     if (!requireAdmin()) return;
     const product = {
       id: randomUUID(),
@@ -298,10 +340,10 @@ const server = createServer(async (req, res) => {
     return json(res, 201, product.id);
   }
 
-  const productImageMatch = path.match(/^\/api\/products\/([\w-]+)\/image$/);
-  if (productImageMatch) {
+  const adminProductImageMatch = path.match(/^\/api\/admin\/products\/([\w-]+)\/image$/);
+  if (adminProductImageMatch) {
     if (!requireAdmin()) return;
-    const index = products.findIndex((p) => p.id === productImageMatch[1]);
+    const index = products.findIndex((p) => p.id === adminProductImageMatch[1]);
     if (index === -1) return fail(res, "Product not found");
 
     if (method === "PUT") {
@@ -312,8 +354,6 @@ const server = createServer(async (req, res) => {
       if (file.data.length > MAX_IMAGE_SIZE_BYTES)
         return invalid(res, { ContentLength: [`Image must be between 1 byte and ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024} MB`] });
 
-      // Настоящий бэк грузит файл в MinIO и отдаёт публичный http(s)-URL;
-      // мок хранит всё в памяти, поэтому кладём картинку прямо в data:-URL.
       const imageUrl = `data:${file.contentType};base64,${file.data.toString("base64")}`;
       products[index] = { ...products[index], imageUrl, lastUpdatedAt: now() };
       return json(res, 200, { imageUrl });
@@ -324,14 +364,14 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  const productMatch = path.match(/^\/api\/products\/([\w-]+)$/);
-  if (productMatch) {
-    const index = products.findIndex((p) => p.id === productMatch[1]);
+  const adminProductMatch = path.match(/^\/api\/admin\/products\/([\w-]+)$/);
+  if (adminProductMatch) {
+    if (!requireAdmin()) return;
+    const index = products.findIndex((p) => p.id === adminProductMatch[1]);
     if (method === "GET")
       return index === -1
-        ? fail(res, `Product with id ${productMatch[1]} was not found.`)
+        ? fail(res, `Product with id ${adminProductMatch[1]} was not found.`)
         : json(res, 200, products[index]);
-    if (!requireAdmin()) return;
     if (index === -1) return fail(res, "Product not found");
     if (method === "PUT") {
       products[index] = { ...products[index], ...body, lastUpdatedAt: now() };
@@ -518,13 +558,16 @@ const server = createServer(async (req, res) => {
 
     const customerIdFilter = url.searchParams.get("customerId");
     const statusFilter = url.searchParams.get("status");
+    const activeOnly = url.searchParams.get("activeOnly") === "true";
     const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") ?? 20) || 20));
+    const ACTIVE = new Set([0, 1, 2]); // Created, Processing, Shipped
 
     let list = [...orders.values()];
     if (customerIdFilter) list = list.filter((o) => o.customerId === customerIdFilter);
     if (statusFilter !== null && statusFilter !== "")
       list = list.filter((o) => String(o.status) === statusFilter);
+    else if (activeOnly) list = list.filter((o) => ACTIVE.has(Number(o.status)));
 
     list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     const totalCount = list.length;
