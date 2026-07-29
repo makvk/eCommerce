@@ -7,6 +7,19 @@ var services = builder.Services;
 
 services.AddInfrastructure(builder.Configuration);
 
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173"];
+
+services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins(corsOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -16,6 +29,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<ECommerce.Api.Middleware.ExceptionHandlingMiddleware>();
+
+app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();

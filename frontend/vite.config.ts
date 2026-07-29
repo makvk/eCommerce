@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 // Бэкенд слушает http://localhost:5269 (см. Properties/launchSettings.json).
-// Ходим через прокси, а не напрямую, потому что в API не настроен CORS.
+// Прокси удобен для same-origin в dev; прямой вызов тоже ок — CORS настроен на API.
 const API_TARGET = process.env.VITE_API_TARGET ?? "http://localhost:5269";
 
 export default defineConfig({
