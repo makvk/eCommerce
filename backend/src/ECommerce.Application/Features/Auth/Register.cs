@@ -1,5 +1,6 @@
 using ECommerce.Application.Common;
 using ECommerce.Application.Common.Exceptions;
+using ECommerce.Domain.Constants;
 using ECommerce.Domain.Entities;
 using ECommerce.Domain.Records;
 using FluentValidation;
@@ -24,7 +25,7 @@ public class Register
         public CommandValidator()
         {
             RuleFor(x => x.User.Email)
-                .NotNull().NotEmpty();
+                .NotNull().NotEmpty().EmailAddress();
             RuleFor(x => x.User.Password)
                 .NotNull().NotEmpty().MinimumLength(8);
             RuleFor(x => x.User.FullName)
@@ -37,30 +38,31 @@ public class Register
         IJwtTokenGenerator jwtTokenGenerator,
         IEDbContext eDbContext) : IRequestHandler<Command, AuthResult>
     {
-        private readonly IPasswordHasher _passwordHasher =  passwordHasher;
-        private readonly IJwtTokenGenerator _jwtTokenGenerator =  jwtTokenGenerator;
-        private readonly  IEDbContext _eDbContext = eDbContext;
         public async Task<AuthResult> Handle(Command request, CancellationToken cancellationToken)
         {
-            var user = await _eDbContext.Customers.FirstOrDefaultAsync(
-                c => c.Email == request.User.Email,
+            var email = request.User.Email!.Trim().ToLowerInvariant();
+            var user = await eDbContext.Customers.FirstOrDefaultAsync(
+                c => c.Email == email,
                 cancellationToken
             );
             if (user != null)
             {
-                throw new BadRequestException("Email already exists");
+                throw new ConflictException("Email already exists");
             }
-            var hashedPassword = _passwordHasher.HashPassword(request.User.Password!);
-            var newUser = new Customer(
-                request.User.Email!,
-                hashedPassword,
-                request.User.FullName!
-            );
-            await _eDbContext.AddCustomerAsync(newUser, cancellationToken);
 
-            var token = _jwtTokenGenerator.GenerateToken(
+            var hashedPassword = passwordHasher.HashPassword(request.User.Password!);
+            var newUser = new Customer(
+                email,
+                hashedPassword,
+                request.User.FullName!,
+                AppRoles.Customer
+            );
+            await eDbContext.AddCustomerAsync(newUser, cancellationToken);
+            await eDbContext.SaveChangesAsync(cancellationToken);
+
+            var token = jwtTokenGenerator.GenerateToken(
                 newUser.Id,
-                "Customer",
+                newUser.Role,
                 newUser.Email
             );
             return new AuthResult(token);

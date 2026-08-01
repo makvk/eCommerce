@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using ECommerce.Application.Common;
 using ECommerce.Domain.Modles;
 using ECommerce.Infrastructure.BackgroundServices;
@@ -14,47 +15,56 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Minio;
 
-
 namespace ECommerce.Infrastructure;
 
 public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
-    {   
-        // Кастомные сервисы
+    {
         services.AddScoped<IJwtTokenGenerator, Security.JwtTokenGenerator>();
         services.AddScoped<IPasswordHasher, Security.PasswordHasher>();
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-        
+
         services.AddSingleton<IConvertCurrencyService, ConvertCurrencyService>();
-        
+
         services.AddHttpClient<GetCurrencyRateApi>();
         services.AddHostedService<CurrencyUpdateWorker>();
         services.Configure<CurrencyOptions>(configuration.GetSection("CurrencySettings"));
-        
-        services.AddControllers();
-        // Регистрация контекста работы с бд в DI
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        services.Configure<AdminSeedOptions>(configuration.GetSection(AdminSeedOptions.SectionName));
+        services.Configure<NotificationsOptions>(configuration.GetSection(NotificationsOptions.SectionName));
+        services.Configure<MinioOptions>(configuration.GetSection("MinioSettings"));
 
-        services.AddDbContext<IEDbContext, EDbContext>(options => 
+        var notifications = configuration.GetSection(NotificationsOptions.SectionName).Get<NotificationsOptions>()
+            ?? new NotificationsOptions();
+        services.AddHttpClient<IOrderNotificationClient, HttpOrderNotificationClient>(client =>
+        {
+            if (!string.IsNullOrWhiteSpace(notifications.BaseUrl))
+            {
+                client.BaseAddress = new Uri(notifications.BaseUrl.TrimEnd('/') + "/");
+            }
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
+
+        services.AddControllers()
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            });
+
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        services.AddDbContext<IEDbContext, EDbContext>(options =>
             options.UseNpgsql(connectionString));
-        
-        //Redis
-#if DEBUG
-        var redisConnectionString = "localhost:6379";
-#else
-        var redisConnectionString = configuration.GetConnectionString("Redis");
-#endif
+
+        var redisConnectionString = configuration.GetConnectionString("Redis")
+            ?? "localhost:6379";
         services.AddStackExchangeRedisCache(options =>
         {
             options.Configuration = redisConnectionString;
             options.InstanceName = configuration["RedisSettings:InstanceName"];
         });
 
-        // MinIO — хранилище файлов (картинки товаров)
-        services.Configure<MinioOptions>(configuration.GetSection("MinioSettings"));
         services.AddSingleton<IMinioClient>(sp =>
         {
             var minioOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MinioOptions>>().Value;
@@ -64,23 +74,21 @@ public static class DependencyInjection
                 .WithSSL(minioOptions.UseSsl)
                 .Build();
         });
-        services.AddScoped<IFileStorageService, Services.MinioFileStorageService>();
+        services.AddScoped<IFileStorageService, MinioFileStorageService>();
 
-        // Регистрация MediatR
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssembly(typeof(IEDbContext).Assembly);
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(Security.ValidationBehavior<,>));
         });
-        
+
         services.AddValidatorsFromAssembly(typeof(IEDbContext).Assembly);
-        
-        // Настройка Swagger
+
         services.AddEndpointsApiExplorer()
             .AddSwaggerGen(c =>
             {
                 c.CustomSchemaIds(type => type.ToString().Replace("+", "."));
-        
+
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
                 {
                     Description = @"JWT Authorization header using the Bearer scheme.",
@@ -89,7 +97,7 @@ public static class DependencyInjection
                     Type = SecuritySchemeType.Http,
                     Scheme = "Bearer"
                 });
-        
+
                 c.AddSecurityRequirement(doc => new OpenApiSecurityRequirement
                 {
                     {
@@ -98,10 +106,14 @@ public static class DependencyInjection
                     }
                 });
             });
-        
-        // Настройка авторизации
+
         var jwtSettings = configuration.GetSection("JwtSettings");
-        var secretKey = jwtSettings["Secret"] ?? throw new InvalidOperationException("JWT Secret не найден!");
+        var secretKey = jwtSettings["Secret"];
+        if (string.IsNullOrWhiteSpace(secretKey))
+        {
+            throw new InvalidOperationException(
+                "JWT Secret is not configured. Set JwtSettings__Secret env var or user-secrets.");
+        }
 
         services.AddAuthentication("Bearer")
             .AddJwtBearer(options =>
@@ -120,7 +132,7 @@ public static class DependencyInjection
                 };
             });
         services.AddAuthorization();
-        
+
         return services;
     }
 }

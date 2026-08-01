@@ -39,13 +39,13 @@ public class CartController(IMediator mediator) : ControllerBase
         return NoContent();
     }
     
-    [HttpDelete("items/{id:guid}")]
+    [HttpDelete("items/{productId:guid}")]
     [Authorize(Roles = "Customer")]
     [EndpointDescription("Remove item from cart")]
     public async Task<IActionResult> RemoveCartItem(
-        [FromRoute] Guid id)
+        [FromRoute] Guid productId)
     {
-        await _mediator.Send(new RemoveCartItem.Command(id));
+        await _mediator.Send(new RemoveCartItem.Command(productId));
         return NoContent();
     }
 

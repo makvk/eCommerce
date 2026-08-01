@@ -1,3 +1,4 @@
+using ECommerce.Domain.Constants;
 using ECommerce.Domain.Records;
 
 namespace ECommerce.Domain.Entities;
@@ -7,20 +8,22 @@ public class Customer
     public Guid Id { get; init; }
     public string Email { get; private set; } = null!;
     public string PasswordHash { get; private set; } = null!;
-    public FullName Name { get; private  set; } = null!;
+    public string Role { get; private set; } = AppRoles.Customer;
+    public FullName Name { get; private set; } = null!;
     public Money Balance { get; private set; } = null!;
     public DateTimeOffset LastUpdatedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; init; }
-    
-    public Customer(string email, string passwordHash, FullName name)
+
+    public Customer(string email, string passwordHash, FullName name, string role = AppRoles.Customer)
     {
         Email = email;
         PasswordHash = passwordHash;
         Name = name;
-        
+        Role = role;
+
         Id = Guid.NewGuid();
         Balance = Money.Zero();
-        
+
         LastUpdatedAt = DateTimeOffset.UtcNow;
         CreatedAt = DateTimeOffset.UtcNow;
     }
@@ -36,7 +39,7 @@ public class Customer
         Balance = Balance with { Amount = Balance.Amount + amount };
         LastUpdatedAt = DateTimeOffset.UtcNow;
     }
-    
+
     public void UpdateBalance(Money newBalance)
     {
         Balance = newBalance;

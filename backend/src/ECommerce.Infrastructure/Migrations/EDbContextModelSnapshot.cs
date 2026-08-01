@@ -45,6 +45,11 @@ namespace ECommerce.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.ComplexProperty(typeof(Dictionary<string, object>), "Balance", "ECommerce.Domain.Entities.Customer.Balance#Money", b1 =>
                         {
                             b1.IsRequired();

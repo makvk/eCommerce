@@ -1,4 +1,5 @@
 using ECommerce.Infrastructure;
+using ECommerce.Infrastructure.Services;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,6 +23,8 @@ services.AddCors(options =>
 
 var app = builder.Build();
 
+await StartupSeeder.SeedAsync(app.Services);
+
 if (app.Environment.IsDevelopment())
 {
     app.MapScalarApiReference();
@@ -38,3 +41,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program;

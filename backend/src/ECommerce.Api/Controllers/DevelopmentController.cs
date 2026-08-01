@@ -1,5 +1,6 @@
 #if DEBUG
 using ECommerce.Application.Common;
+using ECommerce.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,24 +8,14 @@ namespace ECommerce.Api.Controllers;
 
 [ApiController]
 [Route("")]
-public class DevelopmentController :  ControllerBase
+public class DevelopmentController : ControllerBase
 {
     [HttpGet]
     public IActionResult Index()
     {
         return Redirect("/scalar/v1");
     }
-    
-    [HttpGet("health")]
-    public IActionResult GetHealth()
-    {
-        return Ok(new 
-        { 
-            status = "ok", 
-            message = "ok" 
-        });
-    }
-    
+
     [HttpGet]
     [Route("get-test-admin-token")]
     public IActionResult GetTestAdminToken(
@@ -32,11 +23,11 @@ public class DevelopmentController :  ControllerBase
     {
         var token = tokenGenerator.GenerateToken(
             Guid.Empty,
-            "Admin",
+            AppRoles.Admin,
             "test-admin");
-        return Ok(new Dictionary<string, string> { { "token",  token } });
+        return Ok(new Dictionary<string, string> { { "token", token } });
     }
-    
+
     [HttpGet]
     [Authorize]
     [Route("test-auth")]

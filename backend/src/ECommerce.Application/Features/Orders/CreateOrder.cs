@@ -22,13 +22,13 @@ public class CreateOrder
         {
             RuleFor(x => x.Address.City)
                 .NotNull().NotEmpty();
-            
+
             RuleFor(x => x.Address.Street)
                 .NotNull().NotEmpty();
-            
+
             RuleFor(x => x.Address.Country)
                 .NotNull().NotEmpty();
-            
+
             RuleFor(x => x.Address.PostalCode)
                 .NotNull().NotEmpty();
         }
@@ -38,63 +38,101 @@ public class CreateOrder
         IDistributedCache cache,
         IEDbContext eDbContext,
         IConvertCurrencyService convertCurrencyService,
-        ICurrentUserService currentUserService) : IRequestHandler<Command, ResponseDto>
+        ICurrentUserService currentUserService,
+        IOrderNotificationClient orderNotificationClient) : IRequestHandler<Command, ResponseDto>
     {
-        private readonly IDistributedCache _cache = cache;
-        private readonly IEDbContext _eDbContext = eDbContext;
-        private readonly ICurrentUserService _currentUserService = currentUserService;
-        private readonly IConvertCurrencyService _convertCurrencyService = convertCurrencyService;
         public async Task<ResponseDto> Handle(Command request, CancellationToken cancellationToken)
         {
-            var userIdString = _currentUserService.UserId;
-            
+            var userIdString = currentUserService.UserId;
+
             if (userIdString == null || !Guid.TryParse(userIdString, out var userId))
                 throw new UnauthorizedException("Invalid user id");
-            
-            var user = _eDbContext.Customers.FirstOrDefault(c => c.Id == userId)
-                ?? throw new NotFoundException("User not found");
-            
-            var userBalance = user.Balance;
-            
-            var cartString = await _cache.GetStringAsync(userIdString, cancellationToken)
+
+            var cartString = await cache.GetStringAsync(userIdString, cancellationToken)
                 ?? throw new BadRequestException("Cart is empty");
 
             var cart = JsonSerializer.Deserialize<Domain.Entities.Cart>(cartString);
             if (cart == null || cart.Items.Count == 0)
                 throw new BadRequestException("Cart is empty");
-            var amount = 0.0m;
-            var order = new Order(userId, request.Address);
-            foreach (var item in cart.Items)
-            {
-                var convertPrice = await _convertCurrencyService
-                    .ConvertCurrencyAsync(item.Price, userBalance.Currency, cancellationToken);
-                var product = await _eDbContext.Products
-                    .FirstOrDefaultAsync(p => p.Id == item.ProductId, cancellationToken);
-                if (product == null || product.StockQuantity < item.Quantity)
-                    throw new BadRequestException($"Current quantity {item.Quantity} is less than stock quantity");
-                order.AddItem(item.ProductId, item.ProductName, item.Quantity, convertPrice);
-                product.UpdateStockQuantity(product.StockQuantity - item.Quantity);
 
-                amount += convertPrice.Amount * item.Quantity;
-            }
-            
-            if (amount > userBalance.Amount)
+            Order order;
+            Money orderPrice;
+
+            await using var tx = await eDbContext.BeginTransactionAsync(cancellationToken);
+            try
             {
-                throw new BadRequestException($"Amount {amount} is greater than current amount");
+                var user = await eDbContext.Customers.FirstOrDefaultAsync(c => c.Id == userId, cancellationToken)
+                    ?? throw new NotFoundException("User not found");
+
+                var userBalance = user.Balance;
+                var amount = 0.0m;
+                order = new Order(userId, request.Address);
+
+                foreach (var item in cart.Items)
+                {
+                    var productId = item.ProductId;
+                    var quantity = item.Quantity;
+
+                    var product = await eDbContext.Products
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken)
+                        ?? throw new BadRequestException($"Product {productId} is not available");
+
+                    var convertPrice = await convertCurrencyService
+                        .ConvertCurrencyAsync(item.Price, userBalance.Currency, cancellationToken);
+
+                    var now = DateTimeOffset.UtcNow;
+                    var rowsAffected = await eDbContext.Products
+                        .Where(p => p.Id == productId && p.StockQuantity >= quantity)
+                        .ExecuteUpdateAsync(
+                            setters => setters
+                                .SetProperty(p => p.StockQuantity, p => p.StockQuantity - quantity)
+                                .SetProperty(p => p.LastUpdatedAt, _ => now),
+                            cancellationToken);
+
+                    if (rowsAffected == 0)
+                    {
+                        throw new BadRequestException(
+                            $"Insufficient stock for product '{product.Name}'. Requested: {quantity}");
+                    }
+
+                    order.AddItem(productId, item.ProductName, quantity, convertPrice);
+                    amount += convertPrice.Amount * quantity;
+                }
+
+                if (amount > userBalance.Amount)
+                {
+                    throw new BadRequestException($"Amount {amount} is greater than current balance");
+                }
+
+                var newBalance = new Money(userBalance.Currency, userBalance.Amount - amount);
+                user.UpdateBalance(newBalance);
+
+                orderPrice = new Money(userBalance.Currency, amount);
+                order.SetTotalPrice(orderPrice);
+
+                await eDbContext.AddOrderAsync(order, cancellationToken);
+                await eDbContext.SaveChangesAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
             }
-            
-            var newBalance = new Money(userBalance.Currency, userBalance.Amount - amount);
-            user.UpdateBalance(newBalance);
-            
-            var orderPrice = new Money(userBalance.Currency, amount);
-            order.SetTotalPrice(orderPrice);
-            await _eDbContext.AddOrderAsync(order, cancellationToken);
-            
-            await _eDbContext.SaveChangesAsync(cancellationToken);
-            await _cache.RemoveAsync(userIdString, cancellationToken);
-            
-            var response = new ResponseDto(order.Id);
-            return response;
+            catch
+            {
+                await tx.RollbackAsync(cancellationToken);
+                throw;
+            }
+
+            await cache.RemoveAsync(userIdString, cancellationToken);
+
+            await orderNotificationClient.NotifyOrderCreatedAsync(
+                new OrderCreatedNotification(
+                    EventId: Guid.NewGuid(),
+                    OrderId: order.Id,
+                    CustomerId: userId,
+                    Total: orderPrice.Amount,
+                    Currency: orderPrice.Currency),
+                cancellationToken);
+
+            return new ResponseDto(order.Id);
         }
     }
 }

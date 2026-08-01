@@ -16,7 +16,7 @@ public class ConvertCurrencyService(
     {
         if (oldBalance.Currency == newCurrency)
             return oldBalance;
-        var ratesString = await cache.GetStringAsync("currency_rates", cancellationToken)
+        var ratesString = await cache.GetStringAsync(StartupSeeder.CurrencyRatesCacheKey, cancellationToken)
                           ?? throw new ServiceUnavailableException("Currency rates are not available");
         var rates = JsonSerializer.Deserialize<Dictionary<string, decimal>>(ratesString)
                     ?? throw new ServiceUnavailableException("Currency rates are not available");

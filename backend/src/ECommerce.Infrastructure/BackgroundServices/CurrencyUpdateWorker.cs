@@ -14,35 +14,35 @@ public class CurrencyUpdateWorker(
     ILogger<CurrencyUpdateWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan UpdateInterval = TimeSpan.FromHours(12);
-    private const string RedisKey = "currency_rates";
-    
+
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
+        // Initial seed is done in StartupSeeder; worker refreshes on a schedule.
+        await Task.Delay(UpdateInterval, cancellationToken);
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
                 logger.LogInformation("Updating currencies");
-                using (var scope = serviceProvider.CreateScope())
+                using var scope = serviceProvider.CreateScope();
+                var rateApi = scope.ServiceProvider.GetRequiredService<GetCurrencyRateApi>();
+                var rates = await rateApi.GetCurrencyRatesAsync(cancellationToken);
+                if (rates is { Count: > 0 })
                 {
-                    var rateApi = scope.ServiceProvider.GetRequiredService<GetCurrencyRateApi>();
-                    var rates = await rateApi.GetCurrencyRatesAsync(cancellationToken);
-                    if (rates != null && rates.Count > 0)
+                    var jsonData = JsonSerializer.Serialize(rates);
+                    await cache.SetStringAsync(Services.StartupSeeder.CurrencyRatesCacheKey, jsonData, cancellationToken);
+                    foreach (var rate in rates)
                     {
-                        var jsonData = JsonSerializer.Serialize(rates);
-                        await cache.SetStringAsync(RedisKey, jsonData, cancellationToken);
-                        foreach (var rate in rates)
-                        {
-                            logger.LogInformation("Val: {Currency} | Rate: {Rate}", rate.Key, rate.Value);
-                        }
+                        logger.LogInformation("Val: {Currency} | Rate: {Rate}", rate.Key, rate.Value);
                     }
                 }
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, ex.Message);
+                logger.LogError(ex, "Failed to update currency rates");
             }
-            
+
             await Task.Delay(UpdateInterval, cancellationToken);
         }
     }

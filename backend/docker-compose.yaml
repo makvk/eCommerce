@@ -55,6 +55,10 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=ecommerce-db;Port=5432;Database=ecommerce_db;Username=postgres;Password=your_pass
+      - ConnectionStrings__Redis=ecommerce-cache:6379
+      - JwtSettings__Secret=DEV_ONLY_SECRET_KEY_JWT_E_COMMERCE_2026_CHANGE_ME
+      - AdminSeed__Password=Admin123!
+      - Notifications__Enabled=false
       - MinioSettings__Endpoint=ecommerce-minio:9000
       - MinioSettings__AccessKey=minioadmin
       - MinioSettings__SecretKey=minioadmin
@@ -63,6 +67,7 @@ services:
       - MinioSettings__PublicBaseUrl=http://localhost:9000
     depends_on:
       - ecommerce-db
+      - ecommerce-cache
       - ecommerce-minio
     networks:
       - ecommerce-network

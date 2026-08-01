@@ -1,0 +1,27 @@
+name: ecommerce-notifications
+
+services:
+  notifications-db:
+    image: postgres:16-alpine
+    container_name: notifications-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_pass
+      POSTGRES_DB: notifications_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - notifications_pg:/var/lib/postgresql/data
+
+  notifications-api:
+    build: .
+    container_name: notifications-api
+    ports:
+      - "8100:8100"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:your_pass@notifications-db:5432/notifications_db
+    depends_on:
+      - notifications-db
+
+volumes:
+  notifications_pg:

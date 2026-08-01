@@ -42,10 +42,11 @@ public class Login
         private readonly IPasswordHasher _passwordHasher = passwordHasher;
         public async Task<AuthResult> Handle(Command request, CancellationToken cancellationToken)
         {
+            var email = request.User.Email!.Trim().ToLowerInvariant();
             var user = await _eDbContext.Customers
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
-                u => u.Email == request.User.Email,
+                u => u.Email == email,
                 cancellationToken
             );
 
@@ -56,8 +57,8 @@ public class Login
 
             var token = _jwtTokenGenerator.GenerateToken(
                 user.Id,
-                "Customer",
-                request.User.Email!
+                user.Role,
+                user.Email
             );
             return new AuthResult(token);
         }

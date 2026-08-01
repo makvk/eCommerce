@@ -26,8 +26,8 @@ public class AddProduct
                 .NotNull();
             RuleFor(x => x.Price.Currency)
                 .NotEmpty()
-                .Must(c => options.Value.SupportedCurrencies.Contains(c))
-                .WithMessage("Currency not supported");
+                .Must(c => c == options.Value.BaseCurrency)
+                .WithMessage(c => $"Product price must be in base currency '{options.Value.BaseCurrency}'");
             RuleFor(x => x.Price.Amount)
                 .NotNull()
                 .GreaterThan(0);
@@ -47,6 +47,7 @@ public class AddProduct
                 request.Price,
                 request.StockQuantity);
             await eDbContext.AddProductAsync(newProduct, cancellationToken);
+            await eDbContext.SaveChangesAsync(cancellationToken);
             return newProduct.Id;
         }
     }

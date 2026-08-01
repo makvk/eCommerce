@@ -2,6 +2,7 @@ using ECommerce.Application.Common;
 using ECommerce.Application.Common.Exceptions;
 using ECommerce.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ECommerce.Infrastructure.Persistence;
 
@@ -11,26 +12,20 @@ public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(option
     public DbSet<Product> Products { get; set; }
     public DbSet<Order> Orders { get; set; }
     public DbSet<OrderItem> OrderItems { get; set; }
-    
-    // Users
+
     public async Task AddCustomerAsync(Customer customer, CancellationToken cancellationToken)
     {
         await Customers.AddAsync(customer, cancellationToken);
-        
-        await SaveChangesAsync(cancellationToken);
     }
-    
-    // Products
+
     public async Task<Product?> GetProductByIdAsync(Guid id, CancellationToken cancellationToken)
     {
-        var product = await Products.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
-        return product;
+        return await Products.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
     }
+
     public async Task AddProductAsync(Product product, CancellationToken cancellationToken)
     {
         await Products.AddAsync(product, cancellationToken);
-        
-        await SaveChangesAsync(cancellationToken);
     }
 
     public async Task RemoveProductByIdAsync(Guid id, CancellationToken cancellationToken)
@@ -44,13 +39,14 @@ public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(option
             throw new NotFoundException($"Product with id {id} not found");
         }
     }
-    
-    // Orders
+
     public async Task AddOrderAsync(Order order, CancellationToken cancellationToken)
     {
         await Orders.AddAsync(order, cancellationToken);
-        await SaveChangesAsync(cancellationToken);
     }
+
+    public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+        => Database.BeginTransactionAsync(cancellationToken);
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -72,7 +68,11 @@ public class EDbContext(DbContextOptions<EDbContext> options) : DbContext(option
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(255)
                 .IsRequired();
-            
+
+            entity.Property(e => e.Role)
+                .IsRequired()
+                .HasMaxLength(50);
+
             entity.ComplexProperty(e => e.Name, builder =>
             {
                 builder.Property(b => b.FirstName)
