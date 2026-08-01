@@ -32,8 +32,8 @@ public class UpdateProduct
                 .NotNull();
             RuleFor(x => x.Data.Price.Currency)
                 .NotEmpty()
-                .Must(c => c == options.Value.BaseCurrency)
-                .WithMessage(_ => $"Product price must be in base currency '{options.Value.BaseCurrency}'");
+                .Must(c => options.Value.SupportedCurrencies.Contains(c))
+                .WithMessage("Currency not supported");
             RuleFor(x => x.Data.Price.Amount)
                 .NotNull()
                 .GreaterThan(0);
